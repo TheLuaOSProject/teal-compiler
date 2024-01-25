@@ -1,0 +1,4 @@
+[submodule "teal"]
+	path = teal
+	url = https://github.com/teal-language/tl
+	branch = next
