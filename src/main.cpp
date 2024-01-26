@@ -17,7 +17,22 @@
 
 #include "utilities.hpp"
 
+#include "RawAST.hpp"
+
 int main()
 {
-    std::println("Hello, World!");
+    std::filesystem::path path = "test.tl";
+    auto contents = ({
+        auto file = std::ifstream(path);
+        std::string contents;
+        file.seekg(0, std::ios::end);
+        contents.reserve(file.tellg());
+        file.seekg(0, std::ios::beg);
+        contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+        contents;
+    });
+
+
+    auto ast = teal::raw::Node::convert_from_lua(contents, "test.teal");
+    std::println("tk: {}, kind: {}, children.size(): {}", ast.tk.value(), magic_enum::enum_name(ast.kind.value()),  ast.children->size());
 }

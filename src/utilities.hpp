@@ -26,4 +26,9 @@
 #include <unordered_map>
 #include <exception>
 #include <sstream>
+#include <filesystem>
+#include <fstream>
 #include <magic_enum.hpp>
+
+#define SOL_ALL_SAFETIES_ON 1
+#include <sol/sol.hpp>

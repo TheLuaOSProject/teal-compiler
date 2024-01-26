@@ -625,6 +625,8 @@ namespace teal::raw
     template<typename TKey, typename TValue>
     using Map = Optional<std::unordered_map<TKey, TValue>>;
 
+    using Table = Optional<sol::table>;
+
     struct Where {
         integer y;
         integer x;
@@ -1113,7 +1115,7 @@ namespace teal::raw
         // Pointer<Type> newtype;
         // Union<TypeAliasType, TypeDeclType> newtype;
         // Union<TypeAliasType, TypeDeclType, std::nullopt_t> newtype;
-        Pointer<Union<TypeAliasType, TypeDeclType>> newtype; //Pointer to union so `std::move` can be done. Yes, this is a bad idea.
+        Union<Pointer<TypeAliasType>, Pointer<TypeDeclType>> newtype; //Pointer to union so `std::move` can be done. Yes, this is a bad idea.
         boolean elide_type;
 
         Operator op;

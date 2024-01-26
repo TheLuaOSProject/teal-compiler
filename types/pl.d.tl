@@ -695,7 +695,7 @@ local record pl
     record pretty
         read: function(string): table, string
         load: function(string, table, boolean): table, string
-        write: function(table, string, boolean): string, string
+        write: function(table, ?string, ?boolean): string, string
         dump: function(table, string)
         debug: function(...: any)
 

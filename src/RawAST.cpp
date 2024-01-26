@@ -19,9 +19,6 @@
 
 #include <algorithm>
 
-#define SOL_ALL_SAFETIES_ON 1
-#include <sol/sol.hpp>
-
 using std::nullopt;
 using namespace std::string_literals;
 using namespace teal::raw;
@@ -53,13 +50,13 @@ static Error convert_error(const sol::table &error)
 }
 
 [[nodiscard]]
-static Pointer<Type> convert_type(const sol::table &node)
+static Pointer<Type> convert_type(const Table &node)
 {
     return nullptr;
 }
 
 [[nodiscard]]
-static Pointer<Fact> convert_fact(const sol::table &node)
+static Pointer<Fact> convert_fact(const Table &node)
 {
     return nullptr;
 }
@@ -86,89 +83,87 @@ Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
 
     //Match the enum kind to the real C++ enum
     if (kind == "...") result = NodeKind::VARARGS;
-    else result = magic_enum::enum_cast<NodeKind>(*kind, [](auto l, auto r) { return ::tolower(l) == ::tolower(r); });
+    else {
+        result = magic_enum::enum_cast<NodeKind>(*kind, [](auto l, auto r) { return ::tolower(l) == ::tolower(r); });
+    }
 
     return result;
 }
 
 [[nodiscard]]
-static Node convert_node(const sol::table &node);
+static Pointer<Node> convert_node(const Table &node);
 
 template<typename T>
 [[nodiscard]]
-static Array<T> convert_array(const sol::table &node)
+static Array<T> convert_array(const Table &node)
 { static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
 
 template<>
 [[nodiscard]]
-Array<Node> convert_array<Node>(const sol::table &node)
+Array<TypeArgType> convert_array<TypeArgType>(const Table &node)
 {
-    if (not node.valid() or node.get_type() != sol::type::table) return nullopt;
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
-    auto result = std::vector<Node>(node.size());
-    for (size_t i = 0; i < node.size(); i++) {
-        auto x = node[i + 1];
+    auto result = std::vector<TypeArgType>(node->size());
+    for (size_t i = 0; i < node->size(); i++) {
+        auto x = (*node)[i + 1];
+        if (x.get_type() == sol::type::table)
+            result.emplace_back(std::move(*dynamic_cast<TypeArgType *>(convert_type(x).get())));
+    }
+
+    return result;
+}
+
+template<>
+[[nodiscard]]
+Array<Pointer<Node>> convert_array<Pointer<Node>>(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+
+    auto result = std::vector<Pointer<Node>>(node->size());
+    for (size_t i = 0; i < node->size(); i++) {
+        auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
             result.emplace_back(convert_node(x));
     }
     return result;
 }
 
-template<>
 [[nodiscard]]
-Array<Pointer<Node>> convert_array<Pointer<Node>>(const sol::table &node)
+static Pointer<Node> convert_node(const Table &node)
 {
-    if (not node.valid() or node.get_type() != sol::type::table) return nullopt;
+    auto result = std::make_unique<Node>();
 
-    auto result = std::vector<Pointer<Node>>(node.size());
-    for (size_t i = 0; i < node.size(); i++) {
-        auto x = node[i + 1];
-        if (x.get_type() == sol::type::table)
-            result.emplace_back(std::make_unique<Node>(convert_node(x)));
-    }
-    return result;
-}
+    result->children = convert_array<Pointer<Node>>(node);
+    result->tk = node->get<std::string>("tk");
+    result->kind = convert_enum<NodeKind>(node->get<string>("kind"));
+    result->symbol_list_slot = node->get<integer>("symbol_list_slot");
+    result->semicolon = node->get<boolean>("semicolon");
+    result->hashbang = node->get<string>("hashbang");
+    result->is_longstring = node->get<boolean>("is_longstring");
+    result->yend = node->get<integer>("yend");
+    result->xend = node->get<integer>("xend");
 
-template<typename T>
-[[nodiscard]] T convert_if_exists(const sol::table &node)
-{ static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
-
-template<>
-[[nodiscard]]
-Pointer<Node> convert_if_exists<Pointer<Node>>(const sol::table &node)
-{ return node.valid() ? std::make_unique<Node>(convert_node(node)) : nullptr; }
-
-[[nodiscard]]
-static Node convert_node(const sol::table &node)
-{
-    Node result;
-
-    result.children = convert_array<Pointer<Node>>(node);
-    result.tk = node.get<std::string>("tk");
-    result.kind = convert_enum<NodeKind>(node.get<string>("kind"));
-    result.symbol_list_slot = node.get<integer>("symbol_list_slot");
-    result.semicolon = node.get<boolean>("semicolon");
-    result.hashbang = node.get<string>("hashbang");
-    result.is_longstring = node.get<boolean>("is_longstring");
-    result.yend = node.get<integer>("yend");
-    result.xend = node.get<integer>("xend");
-
-    result.known = convert_fact(node.get<sol::table>("known"));
-    result.expected = convert_type(node.get<sol::table>("expected"));
-    result.expected_context = ({
+    result->known = convert_fact(node->get<Table>("known"));
+    result->expected = convert_type(node->get<Table>("expected"));
+    result->expected_context = ({
         Optional<Node::ExpectedContext> match = std::nullopt;
-        if (auto tbl = node.get<sol::table>("expected_context"); tbl.valid()) {
+        if (auto tbl = node->get<Table>("expected_context"); tbl.has_value() and tbl->valid()) {
             match = Node::ExpectedContext {
-                .kind = convert_enum<NodeKind>(tbl.get<string>("kind")),
-                .name = tbl.get<string>("name")
+                .kind = convert_enum<NodeKind>(tbl->get<string>("kind")),
+                .name = tbl->get<string>("name")
             };
         }
         match;
     });
 
-    result.key = convert_if_exists<Pointer<Node>>(node.get<sol::table>("key"));
-    result.value = convert_if_exists<Pointer<Node>>(node.get<sol::table>("value"));
-    result.key_parsed = convert_enum<KeyParsed>(node.get<string>("key_parsed"));
+    result->key = convert_node(node->get<Table>("key"));
+    result->value = convert_node(node->get<Table>("value"));
+    result->key_parsed = convert_enum<KeyParsed>(node->get<string>("key_parsed"));
+
+    result->typeargs = convert_array<TypeArgType>(node->get<Table>("typeargs"));
+    result->min_arity = node->get<integer>("min_arity");
+    result->args = convert_node(node->get<Table>("args"));
 
     return result;
 }
