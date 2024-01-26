@@ -114,6 +114,21 @@ Array<Node> convert_array<Node>(const sol::table &node)
     return result;
 }
 
+template<>
+[[nodiscard]]
+Array<Pointer<Node>> convert_array<Pointer<Node>>(const sol::table &node)
+{
+    if (not node.valid() or node.get_type() != sol::type::table) return nullopt;
+
+    auto result = std::vector<Pointer<Node>>(node.size());
+    for (size_t i = 0; i < node.size(); i++) {
+        auto x = node[i + 1];
+        if (x.get_type() == sol::type::table)
+            result.emplace_back(std::make_unique<Node>(convert_node(x)));
+    }
+    return result;
+}
+
 template<typename T>
 [[nodiscard]] T convert_if_exists(const sol::table &node)
 { static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
@@ -128,6 +143,7 @@ static Node convert_node(const sol::table &node)
 {
     Node result;
 
+    result.children = convert_array<Pointer<Node>>(node);
     result.tk = node.get<std::string>("tk");
     result.kind = convert_enum<NodeKind>(node.get<string>("kind"));
     result.symbol_list_slot = node.get<integer>("symbol_list_slot");
