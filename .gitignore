@@ -1,0 +1,7 @@
+/target/
+/archive/
+/.xmake
+/build/
+.cache
+t.*
+compile_commands.json
