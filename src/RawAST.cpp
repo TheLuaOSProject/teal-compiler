@@ -22,8 +22,8 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
+using std::nullopt;
 using namespace std::string_literals;
-
 using namespace teal::raw;
 
 static struct Teal {
@@ -40,7 +40,8 @@ static struct Teal {
     { return teal["parse"](input, filename); }
 } TEAL;
 
-static Error parse_error(const sol::table &error)
+[[nodiscard]]
+static Error convert_error(const sol::table &error)
 {
     Error result;
     result.msg = error["msg"];
@@ -51,41 +52,122 @@ static Error parse_error(const sol::table &error)
     return result;
 }
 
-static Node parse_node(const sol::table &node)
+[[nodiscard]]
+static Pointer<Type> convert_type(const sol::table &node)
 {
-    Node result;
+    return nullptr;
+}
 
-    result.tk = node["tk"];
-    result.kind = ({
-        NodeKind match = NodeKind::ERROR_NODE;
-        string kind = node["kind"];
+[[nodiscard]]
+static Pointer<Fact> convert_fact(const sol::table &node)
+{
+    return nullptr;
+}
 
-        if (kind == "...") {
-            match = NodeKind::VARARGS;
-        } else {
-            //Match the enum kind to the real C++ enum
-            std::transform(kind.begin(), kind.end(), kind.begin(), ::toupper);
-            match = magic_enum::enum_cast<NodeKind>(kind).value_or(NodeKind::UNKNOWN);
-        }
+template<typename T>
+static inline Optional<T> convert_enum(const string &s)
+{
+    if (not s.has_value()) return nullopt;
 
-        match;
-    });
-    result.symbol_list_slot = node.get<Optional<integer>>("symbol_list_slot");
+    std::string kind = *s; //copy so `std::transform` can work
+    //Match the enum kind to the real C++ enum
+    std::transform(kind.begin(), kind.end(), kind.begin(), ::toupper);
+
+    return magic_enum::enum_cast<T>(kind);
+}
+
+template<>
+[[nodiscard]]
+Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
+{
+    if (not kind.has_value()) return nullopt;
+
+    Optional<NodeKind> result;
+
+    //Match the enum kind to the real C++ enum
+    if (kind == "...") result = NodeKind::VARARGS;
+    else result = magic_enum::enum_cast<NodeKind>(*kind, [](auto l, auto r) { return ::tolower(l) == ::tolower(r); });
 
     return result;
 }
 
-Node Node::parse(const string &input, const string &filename)
+[[nodiscard]]
+static Node convert_node(const sol::table &node);
+
+template<typename T>
+[[nodiscard]]
+static Array<T> convert_array(const sol::table &node)
+{ static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
+
+template<>
+[[nodiscard]]
+Array<Node> convert_array<Node>(const sol::table &node)
 {
-    auto [ast, errors, comments] = TEAL.parse(input, filename);
+    if (not node.valid() or node.get_type() != sol::type::table) return nullopt;
+
+    auto result = std::vector<Node>(node.size());
+    for (size_t i = 0; i < node.size(); i++) {
+        auto x = node[i + 1];
+        if (x.get_type() == sol::type::table)
+            result.emplace_back(convert_node(x));
+    }
+    return result;
+}
+
+template<typename T>
+[[nodiscard]] T convert_if_exists(const sol::table &node)
+{ static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
+
+template<>
+[[nodiscard]]
+Pointer<Node> convert_if_exists<Pointer<Node>>(const sol::table &node)
+{ return node.valid() ? std::make_unique<Node>(convert_node(node)) : nullptr; }
+
+[[nodiscard]]
+static Node convert_node(const sol::table &node)
+{
+    Node result;
+
+    result.tk = node.get<std::string>("tk");
+    result.kind = convert_enum<NodeKind>(node.get<string>("kind"));
+    result.symbol_list_slot = node.get<integer>("symbol_list_slot");
+    result.semicolon = node.get<boolean>("semicolon");
+    result.hashbang = node.get<string>("hashbang");
+    result.is_longstring = node.get<boolean>("is_longstring");
+    result.yend = node.get<integer>("yend");
+    result.xend = node.get<integer>("xend");
+
+    result.known = convert_fact(node.get<sol::table>("known"));
+    result.expected = convert_type(node.get<sol::table>("expected"));
+    result.expected_context = ({
+        Optional<Node::ExpectedContext> match = std::nullopt;
+        if (auto tbl = node.get<sol::table>("expected_context"); tbl.valid()) {
+            match = Node::ExpectedContext {
+                .kind = convert_enum<NodeKind>(tbl.get<string>("kind")),
+                .name = tbl.get<string>("name")
+            };
+        }
+        match;
+    });
+
+    result.key = convert_if_exists<Pointer<Node>>(node.get<sol::table>("key"));
+    result.value = convert_if_exists<Pointer<Node>>(node.get<sol::table>("value"));
+    result.key_parsed = convert_enum<KeyParsed>(node.get<string>("key_parsed"));
+
+    return result;
+}
+
+Node Node::convert_from_lua(const std::string &input, const std::string &filename)
+{
+    auto [ast, errors, _] = TEAL.parse(input, filename);
     if (errors.size() > 0) {
-        auto errs = Array<Error>(errors.size());
+        auto errs = std::vector<Error>(errors.size());
         for (size_t i = 0; i < errors.size(); i++) {
-            errs[i] = parse_error(errors[i + 1]);
+            errs[i] = convert_error(errors[i + 1]);
         }
 
-        throw ParseException(errs);
+        throw ConvertException(errs);
     }
 
-    return parse_node(ast);
+    return convert_node(ast);
 }

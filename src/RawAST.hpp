@@ -996,7 +996,6 @@ namespace teal::raw
         LOCAL_MACROEXP,
         INTERFACE,
         ERROR_NODE,
-        UNKNOWN
     };
 
     enum class FactType {
@@ -1057,17 +1056,17 @@ namespace teal::raw
 
     struct Node {
         struct ExpectedContext {
-            NodeKind kind;
+            Optional<NodeKind> kind;
             string name;
         };
 
         Array<Pointer<Node>> children;
 
         string tk;
-        NodeKind kind;
+        Optional<NodeKind> kind;
         integer symbol_list_slot;
         boolean semicolon;
-        string hashbanh;
+        string hashbang;
         boolean is_longstring;
         integer yend;
         integer xend;
@@ -1078,7 +1077,7 @@ namespace teal::raw
 
         Pointer<Node> key;
         Pointer<Node> value;
-        KeyParsed key_parsed;
+        Optional<KeyParsed> key_parsed;
 
         Array<TypeArgType> typeargs;
         integer min_arity;
@@ -1152,16 +1151,16 @@ namespace teal::raw
         Node() = default;
         Node(Node &&) = default;
 
-        static Node parse(const string &input, const string &filename = "");
+        static Node convert_from_lua(const std::string &input, const std::string &filename = "");
     };
 
-    class ParseException : public std::exception {
+    class ConvertException : public std::exception {
     private:
         std::vector<Error> _errors;
         std::string _what;
 
     public:
-        explicit ParseException(std::vector<Error> errors) : _errors(std::move(errors))
+        explicit ConvertException(std::vector<Error> errors) : _errors(std::move(errors))
         {
             std::stringstream ss;
             ss << "Parse Exception: " << std::endl;
