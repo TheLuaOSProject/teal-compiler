@@ -728,7 +728,7 @@ namespace teal::raw
         TypeName type_name;
         integer type_id;
         Optional<Where> inferred_at;
-        boolean needs_compat; //if this is nil in the lua table just set it to false
+        boolean needs_compat;
 
         virtual ~Type() = 0;
     };
@@ -759,7 +759,7 @@ namespace teal::raw
     };
 
     struct NominalType : Type {
-        Array<string> names;
+        Array<std::string> names;
         Array<Pointer<Type>> typevals;
         Pointer<Type> found;
         Pointer<Type> resolved;
@@ -1115,12 +1115,13 @@ namespace teal::raw
         // Pointer<Type> newtype;
         // Union<TypeAliasType, TypeDeclType> newtype;
         // Union<TypeAliasType, TypeDeclType, std::nullopt_t> newtype;
-        Union<Pointer<TypeAliasType>, Pointer<TypeDeclType>> newtype; //Pointer to union so `std::move` can be done. Yes, this is a bad idea.
+        Optional<Union<Pointer<TypeAliasType>, Pointer<TypeDeclType>>> newtype; //Pointer to union so `std::move` can be done. Yes, this is a bad idea.
         boolean elide_type;
 
-        Operator op;
+        Optional<Operator> op;
         Pointer<Node> e1;
         Pointer<Node> e2;
+
         number constnum;
         string conststr;
         boolean failstore;
@@ -1153,7 +1154,7 @@ namespace teal::raw
         Node() = default;
         Node(Node &&) = default;
 
-        static Node convert_from_lua(const std::string &input, const std::string &filename = "");
+        static Node &&convert_from_lua(const std::string &input, const std::string &filename = "");
     };
 
     class ConvertException : public std::exception {

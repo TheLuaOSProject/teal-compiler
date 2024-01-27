@@ -37,28 +37,28 @@ static struct Teal {
     { return teal["parse"](input, filename); }
 } TEAL;
 
+template<typename T>
+using ConvertResult = Union<Optional<T>, Pointer<T>>;
+
+template<typename T>
 [[nodiscard]]
-static Error convert_error(const sol::table &error)
+static ConvertResult<T> convert(const Table &node)
+{ static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
+
+// [[nodiscard]]
+// static Error convert_error(const sol::table &error)
+template<>
+[[nodiscard]]
+ConvertResult<Error> convert<Error>(const Table &error)
 {
+    if (not error.has_value() or not error->valid() or error->get_type() != sol::type::table) return nullopt;
     Error result;
-    result.msg = error["msg"];
-    result.tag = error["tag"];
-    result.filename = error.get_or("filename", ""s);
-    result.y = error["y"];
-    result.x = error["x"];
+    result.msg = error->get<string>("msg");
+    result.tag = error->get<string>("tag");
+    result.filename = error->get<string>("filename");
+    result.y = error->get<integer>("y");
+    result.x = error->get<integer>("x");
     return result;
-}
-
-[[nodiscard]]
-static Pointer<Type> convert_type(const Table &node)
-{
-    return nullptr;
-}
-
-[[nodiscard]]
-static Pointer<Fact> convert_fact(const Table &node)
-{
-    return nullptr;
 }
 
 template<typename T>
@@ -71,6 +71,110 @@ static inline Optional<T> convert_enum(const string &s)
     std::transform(kind.begin(), kind.end(), kind.begin(), ::toupper);
 
     return magic_enum::enum_cast<T>(kind);
+}
+
+template<>
+[[nodiscard]]
+ConvertResult<Where> convert<Where>(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+
+    return Where {
+        .y = node->get<integer>("y"),
+        .x = node->get<integer>("x"),
+        .f = node->get<string>("filename")
+    };
+}
+
+template<>
+[[nodiscard]]
+ConvertResult<std::vector<std::string>> convert<std::vector<std::string>>(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+
+    auto result = std::vector<std::string>(node->size());
+    for (size_t i = 0; i < node->size(); i++) {
+        auto x = (*node)[i + 1];
+        if (x.get_type() == sol::type::string)
+            result.emplace_back(x);
+    }
+    return result;
+}
+
+template<>
+[[nodiscard]]
+ConvertResult<Type> convert<Type>(const Table &node)
+{
+    if (not node.has_value()
+     or not node->valid()
+     or node->get_type() != sol::type::table
+     or not node->get<string>("type_name").has_value()) return nullptr;
+
+    Pointer<Type> result = nullptr;
+
+    auto type_name = convert_enum<TypeName>(*node->get<string>("type_name"));
+    if (not type_name.has_value()) return nullptr;
+
+    switch (*type_name) {
+    case TypeName::STRING: {
+        auto s = std::make_unique<StringType>();
+        s->literal = node->get<string>("literal");
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::INTEGER: {
+        result = std::make_unique<IntegerType>();
+        break;
+    }
+
+    case TypeName::BOOLEAN: {
+        result = std::make_unique<BooleanType>();
+        break;
+    }
+
+    case TypeName::TYPEDECL: {
+        auto s = std::make_unique<TypeDeclType>();
+        s->def = convert_type(node->get<Table>("def"));
+        s->closed = node->get<boolean>("closed");
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::NOMINAL: {
+        auto s = std::make_unique<NominalType>();
+        s->names = convert_array<std::string>(node->get<Table>("names"));
+        s->typevals = convert_array<Pointer<Type>>(node->get<Table>("typevals"));
+        s->found = convert_type(node->get<Table>("found"));
+        s->resolved = convert_type(node->get<Table>("resolved"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::LITERAL_TABLE_ITEM: {
+        auto s = std::make_unique<LiteralTableItemType>();
+        s->kname = node->get<string>("kname");
+        s->ktype = convert_type(node->get<Table>("ktype"));
+        s->vtype = convert_type(node->get<Table>("vtype"));
+        result = std::move(s);
+        break;
+    }
+
+    default:
+        throw std::runtime_error("Unknown type name: "s + *node->get<string>("type_name"));
+    };
+
+    result->type_id = node->get<integer>("type_id");
+    result->inferred_at = convert_where(node->get<Table>("inferred_at"));
+    result->needs_compat = node->get<boolean>("needs_compat");
+
+    return result;
+}
+
+[[nodiscard]]
+static Pointer<Fact> convert_fact(const Table &node)
+{
+    return nullptr;
 }
 
 template<>
@@ -92,11 +196,6 @@ Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
 
 [[nodiscard]]
 static Pointer<Node> convert_node(const Table &node);
-
-template<typename T>
-[[nodiscard]]
-static Array<T> convert_array(const Table &node)
-{ static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
 
 template<>
 [[nodiscard]]
@@ -132,6 +231,8 @@ Array<Pointer<Node>> convert_array<Pointer<Node>>(const Table &node)
 [[nodiscard]]
 static Pointer<Node> convert_node(const Table &node)
 {
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullptr;
+
     auto result = std::make_unique<Node>();
 
     result->children = convert_array<Pointer<Node>>(node);
@@ -164,11 +265,93 @@ static Pointer<Node> convert_node(const Table &node)
     result->typeargs = convert_array<TypeArgType>(node->get<Table>("typeargs"));
     result->min_arity = node->get<integer>("min_arity");
     result->args = convert_node(node->get<Table>("args"));
+    result->body = convert_node(node->get<Table>("body"));
+    result->implicit_global_function = node->get<boolean>("implicit_global_function");
+    result->is_predeclared_local_function = node->get<boolean>("is_predeclared_local_function");
+
+    result->name = convert_node(node->get<Table>("name"));
+
+    result->is_repeat = node->get<boolean>("is_repeat");
+
+    result->attribute = convert_enum<Attribute>(node->get<string>("attribute"));
+
+    result->fn_owner = convert_node(node->get<Table>("fn_owner"));
+    result->is_method = node->get<boolean>("is_method");
+
+    result->exp = convert_node(node->get<Table>("exp"));
+    result->if_parent = convert_node(node->get<Table>("if_parent"));
+    result->if_block_n = node->get<integer>("if_block_n");
+    result->block_returns = node->get<boolean>("block_returns");
+
+    result->var = convert_node(node->get<Table>("var"));
+    result->from = convert_node(node->get<Table>("from"));
+    result->to = convert_node(node->get<Table>("to"));
+    result->step = convert_node(node->get<Table>("step"));
+
+    result->vars = convert_node(node->get<Table>("vars"));
+    result->exps = convert_node(node->get<Table>("exps"));
+
+    //fuck this
+    result->newtype = ({
+        //fuck you
+        decltype(result->newtype) res;
+        auto ty = convert_type(node->get<Table>("newtype"));
+
+        if (ty->type_name == TypeName::TYPEALIAS)
+            res = Pointer<TypeAliasType>(dynamic_cast<TypeAliasType *>(ty.release()));
+        else if (ty->type_name == TypeName::TYPEDECL)
+            res = Pointer<TypeDeclType>(dynamic_cast<TypeDeclType *>(ty.release()));
+
+        std::move(res);
+    });
+    result->elide_type = node->get<boolean>("elide_type");
+
+    result->op = ({
+        auto tbl = node->get<Table>("op");
+        Optional<Operator> op = nullopt;
+
+        if (tbl.has_value()) {
+            op->y = tbl->get<integer>("y");
+            op->x = tbl->get<integer>("x");
+            op->arity = tbl->get<integer>("arity");
+            op->op = tbl->get<string>("op");
+            op->prec = tbl->get<integer>("prec");
+        }
+        op;
+    });
+    result->e1 = convert_node(node->get<Table>("e1"));
+    result->e2 = convert_node(node->get<Table>("e2"));
+
+    result->constnum = node->get<number>("constnum");
+    result->conststr = node->get<string>("conststr");
+    result->failstore = node->get<boolean>("failstore");
+    result->discarded_tuple = node->get<boolean>("discarded_tuple");
+    result->receiver = convert_type(node->get<Table>("receiver"));
+
+    result->array_len = node->get<integer>("array_len");
+
+    result->label = node->get<string>("label");
+    result->used_label = node->get<boolean>("used_label");
+
+    result->casttype = convert_type(node->get<Table>("casttype"));
+
+    result->is_lvalue = node->get<boolean>("is_lvalue");
+
+    result->macrodef = convert_node(node->get<Table>("macrodef"));
+    result->expanded = convert_node(node->get<Table>("expanded"));
+
+    result->argtype = convert_type(node->get<Table>("argtype"));
+    result->itemtype = convert_type(node->get<Table>("itemtype"));
+    result->decltuple = Pointer<TupleType>(dynamic_cast<TupleType *>(convert_type(node->get<Table>("decltuple")).release()));
+
+    result->opt = node->get<boolean>("opt");
+
+    result->debug_type = convert_type(node->get<Table>("debug_type"));
 
     return result;
 }
 
-Node Node::convert_from_lua(const std::string &input, const std::string &filename)
+Node &&Node::convert_from_lua(const std::string &input, const std::string &filename)
 {
     auto [ast, errors, _] = TEAL.parse(input, filename);
     if (errors.size() > 0) {
@@ -180,5 +363,5 @@ Node Node::convert_from_lua(const std::string &input, const std::string &filenam
         throw ConvertException(errs);
     }
 
-    return convert_node(ast);
+    return std::move(*convert_node(ast));
 }
