@@ -16,6 +16,7 @@
 // along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "RawAST.hpp"
+#include "utilities.hpp"
 
 #include <algorithm>
 
@@ -38,18 +39,20 @@ static struct Teal {
 } TEAL;
 
 template<typename T>
-using ConvertResult = Union<Optional<T>, Pointer<T>>;
-
-template<typename T>
 [[nodiscard]]
-static ConvertResult<T> convert(const Table &node)
+static T convert(const Table &node)
 { static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
+
+
+template<>
+[[nodiscard]]
+Pointer<Node> convert<Pointer<Node>>(const Table &node);
 
 // [[nodiscard]]
 // static Error convert_error(const sol::table &error)
 template<>
 [[nodiscard]]
-ConvertResult<Error> convert<Error>(const Table &error)
+Optional<Error> convert<Optional<Error>>(const Table &error)
 {
     if (not error.has_value() or not error->valid() or error->get_type() != sol::type::table) return nullopt;
     Error result;
@@ -75,7 +78,7 @@ static inline Optional<T> convert_enum(const string &s)
 
 template<>
 [[nodiscard]]
-ConvertResult<Where> convert<Where>(const Table &node)
+Optional<Where> convert<Optional<Where>>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
@@ -88,7 +91,48 @@ ConvertResult<Where> convert<Where>(const Table &node)
 
 template<>
 [[nodiscard]]
-ConvertResult<std::vector<std::string>> convert<std::vector<std::string>>(const Table &node)
+string convert<string>(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::string) return "";
+
+    return node->as<string>();
+}
+
+
+template<typename T>
+[[nodiscard]]
+Array<T> convert_array(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+
+    auto result = std::vector<T>(node->size());
+    for (size_t i = 0; i < node->size(); i++) {
+        auto x = (*node)[i + 1];
+        if (x.get_type() == sol::type::table)
+            result.emplace_back(convert<T>(x));
+    }
+    return result;
+}
+
+template<typename TKey, typename TValue>
+[[nodiscard]]
+Map<TKey, TValue> convert_map(const Table &node)
+{
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+
+    auto result = std::unordered_map<TKey, TValue>();
+    for (auto &pair : *node) {
+        auto key = pair.first;
+        auto value = pair.second;
+
+        result.emplace(convert<TKey>(key), convert<TValue>(value));
+    }
+    return result;
+}
+
+template<>
+[[nodiscard]]
+Array<std::string> convert_array<std::string>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
@@ -103,7 +147,11 @@ ConvertResult<std::vector<std::string>> convert<std::vector<std::string>>(const 
 
 template<>
 [[nodiscard]]
-ConvertResult<Type> convert<Type>(const Table &node)
+Pointer<Type> convert<Pointer<Type>>(const Table &node);
+
+template<>
+[[nodiscard]]
+Pointer<Type> convert<Pointer<Type>>(const Table &node)
 {
     if (not node.has_value()
      or not node->valid()
@@ -114,6 +162,34 @@ ConvertResult<Type> convert<Type>(const Table &node)
 
     auto type_name = convert_enum<TypeName>(*node->get<string>("type_name"));
     if (not type_name.has_value()) return nullptr;
+
+    const auto convert_array_like_type = [](const Table &node, ArrayLikeType *to) {
+        to->elements = convert<Pointer<Type>>(node->get<Table>("elements"));
+        to->consttypes = convert_array<Pointer<Type>>(node->get<Table>("consttypes"));
+        to->inferred_len = node->get<integer>("inferred_len");
+    };
+
+    const auto parse_record_like_type = [](const Table &node, RecordLikeType *to) {
+        to->interface_list = ({ // I cant care enough to make a proper specialisation
+            auto tbl = node->get<Table>("interface_list").value();
+            auto result = std::vector<Pointer<Type>>(tbl.size());
+
+            for (size_t i = 0; i < tbl.size(); i++) {
+                auto x = tbl.get<sol::table>(i+1);
+                if (x.get_type() == sol::type::table) {
+                    result.emplace_back(convert<Pointer<Type>>(x));
+                }
+            }
+
+            std::move(result);
+        });
+        to->interfaces_expanded = node->get<boolean>("interfaces_expanded");
+        to->fields              = convert_map<string, Pointer<Type>>(node->get<Table>("fields"));
+        to->field_order         = convert_array<string>(node->get<Table>("field_order"));
+        to->meta_fields         = convert_map<string, Pointer<Type>>(node->get<Table>("meta_fields"));
+        to->meta_field_order    = convert_array<string>(node->get<Table>("meta_field_order"));
+        to->is_userdata         = node->get<boolean>("is_userdata");
+    };
 
     switch (*type_name) {
     case TypeName::STRING: {
@@ -135,7 +211,7 @@ ConvertResult<Type> convert<Type>(const Table &node)
 
     case TypeName::TYPEDECL: {
         auto s = std::make_unique<TypeDeclType>();
-        s->def = convert_type(node->get<Table>("def"));
+        s->def = convert<Pointer<Type>>(node->get<Table>("def"));
         s->closed = node->get<boolean>("closed");
         result = std::move(s);
         break;
@@ -145,8 +221,8 @@ ConvertResult<Type> convert<Type>(const Table &node)
         auto s = std::make_unique<NominalType>();
         s->names = convert_array<std::string>(node->get<Table>("names"));
         s->typevals = convert_array<Pointer<Type>>(node->get<Table>("typevals"));
-        s->found = convert_type(node->get<Table>("found"));
-        s->resolved = convert_type(node->get<Table>("resolved"));
+        s->found = convert<Pointer<Type>>(node->get<Table>("found"));
+        s->resolved = convert<Pointer<Type>>(node->get<Table>("resolved"));
         result = std::move(s);
         break;
     }
@@ -154,18 +230,126 @@ ConvertResult<Type> convert<Type>(const Table &node)
     case TypeName::LITERAL_TABLE_ITEM: {
         auto s = std::make_unique<LiteralTableItemType>();
         s->kname = node->get<string>("kname");
-        s->ktype = convert_type(node->get<Table>("ktype"));
-        s->vtype = convert_type(node->get<Table>("vtype"));
+        s->ktype = convert<Pointer<Type>>(node->get<Table>("ktype"));
+        s->vtype = convert<Pointer<Type>>(node->get<Table>("vtype"));
         result = std::move(s);
         break;
+    }
+
+    case TypeName::ARRAY: {
+        auto s = std::make_unique<ArrayType>();
+        convert_array_like_type(node, s.get());
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::RECORD: {
+        auto s = std::make_unique<RecordType>();
+        parse_record_like_type(node, s.get());
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::INTERFACE: {
+        auto s = std::make_unique<InterfaceType>();
+        parse_record_like_type(node, s.get());
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::INVALID: {
+        auto s = std::make_unique<InvalidType>();
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::UNKNOWN: {
+        auto s = std::make_unique<UnknownType>();
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::TUPLE: {
+        auto s = std::make_unique<TupleType>();
+        s->is_va = node->get<boolean>("is_va");
+        s->tuple = convert_array<Pointer<Type>>(node->get<Table>("tuple"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::TYPEARG: {
+        auto s = std::make_unique<TypeArgType>();
+        s->typearg = node->get<string>("typearg");
+        s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::UNRESOLVED_TYPEARG: {
+        auto s = std::make_unique<UnresolvedTypeArgType>();
+        s->typearg = node->get<string>("typearg");
+        s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::UNRESOLVABLE_TYPEARG: {
+        auto s = std::make_unique<UnresolvableTypeArgType>();
+        s->typearg = node->get<string>("typearg");
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::TYPEVAR: {
+        auto s = std::make_unique<TypeVarType>();
+        s->typevar = node->get<string>("typevar");
+        s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::MAP: {
+        auto s = std::make_unique<MapType>();
+        s->is_total = node->get<boolean>("is_total");
+        s->missing = convert_array<string>(node->get<Table>("missing"));
+        s->keys = convert<Pointer<Type>>(node->get<Table>("keys"));
+        s->values = convert<Pointer<Type>>(node->get<Table>("values"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::EMPTYTABLE: {
+        auto s = std::make_unique<EmptyTableType>();
+        s->declared_at  = convert<Pointer<Node>>(node->get<Table>("declared_at"));
+        s->assigned_to  = node->get<string>("assigned_to");
+        s->keys         = convert<Pointer<Type>>(node->get<Table>("keys"));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::UNRESOLVED_EMPTYTABLE_VALUE: {
+        auto s = std::make_unique<UnresolvedEmptyTableValueType>();
+        s->emptytable_type = unique_ptr_cast<EmptyTableType>(convert<Pointer<Type>>(node->get<Table>("emptytable_type")));
+        result = std::move(s);
+        break;
+    }
+
+    case TypeName::FUNCTION: {
+        auto s = std::make_unique<FunctionType>();
+        s->is_method = node->get<boolean>("is_method");
+        s->min_arity = node->get<integer>("min_arity");
+        s->args = unique_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("args")));
     }
 
     default:
         throw std::runtime_error("Unknown type name: "s + *node->get<string>("type_name"));
     };
 
+    result->x = node->get<integer>("x");
+    result->y = node->get<integer>("y");
+    result->type_name = *type_name;
     result->type_id = node->get<integer>("type_id");
-    result->inferred_at = convert_where(node->get<Table>("inferred_at"));
+    result->inferred_at = convert<Optional<Where>>(node->get<Table>("inferred_at"));
     result->needs_compat = node->get<boolean>("needs_compat");
 
     return result;
@@ -194,9 +378,6 @@ Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
     return result;
 }
 
-[[nodiscard]]
-static Pointer<Node> convert_node(const Table &node);
-
 template<>
 [[nodiscard]]
 Array<TypeArgType> convert_array<TypeArgType>(const Table &node)
@@ -207,7 +388,7 @@ Array<TypeArgType> convert_array<TypeArgType>(const Table &node)
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
-            result.emplace_back(std::move(*dynamic_cast<TypeArgType *>(convert_type(x).get())));
+            result.emplace_back(std::move(*unique_ptr_cast<TypeArgType>(convert<Pointer<Type>>(x))));
     }
 
     return result;
@@ -223,13 +404,14 @@ Array<Pointer<Node>> convert_array<Pointer<Node>>(const Table &node)
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
-            result.emplace_back(convert_node(x));
+            result.emplace_back(convert<Pointer<Node>>(x));
     }
     return result;
 }
 
+template<>
 [[nodiscard]]
-static Pointer<Node> convert_node(const Table &node)
+Pointer<Node> convert<Pointer<Node>>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullptr;
 
@@ -246,7 +428,7 @@ static Pointer<Node> convert_node(const Table &node)
     result->xend = node->get<integer>("xend");
 
     result->known = convert_fact(node->get<Table>("known"));
-    result->expected = convert_type(node->get<Table>("expected"));
+    result->expected = convert<Pointer<Type>>(node->get<Table>("expected"));
     result->expected_context = ({
         Optional<Node::ExpectedContext> match = std::nullopt;
         if (auto tbl = node->get<Table>("expected_context"); tbl.has_value() and tbl->valid()) {
@@ -258,49 +440,49 @@ static Pointer<Node> convert_node(const Table &node)
         match;
     });
 
-    result->key = convert_node(node->get<Table>("key"));
-    result->value = convert_node(node->get<Table>("value"));
+    result->key = convert<Pointer<Node>>(node->get<Table>("key"));
+    result->value = convert<Pointer<Node>>(node->get<Table>("value"));
     result->key_parsed = convert_enum<KeyParsed>(node->get<string>("key_parsed"));
 
     result->typeargs = convert_array<TypeArgType>(node->get<Table>("typeargs"));
     result->min_arity = node->get<integer>("min_arity");
-    result->args = convert_node(node->get<Table>("args"));
-    result->body = convert_node(node->get<Table>("body"));
+    result->args = convert<Pointer<Node>>(node->get<Table>("args"));
+    result->body = convert<Pointer<Node>>(node->get<Table>("body"));
     result->implicit_global_function = node->get<boolean>("implicit_global_function");
     result->is_predeclared_local_function = node->get<boolean>("is_predeclared_local_function");
 
-    result->name = convert_node(node->get<Table>("name"));
+    result->name = convert<Pointer<Node>>(node->get<Table>("name"));
 
     result->is_repeat = node->get<boolean>("is_repeat");
 
     result->attribute = convert_enum<Attribute>(node->get<string>("attribute"));
 
-    result->fn_owner = convert_node(node->get<Table>("fn_owner"));
+    result->fn_owner = convert<Pointer<Node>>(node->get<Table>("fn_owner"));
     result->is_method = node->get<boolean>("is_method");
 
-    result->exp = convert_node(node->get<Table>("exp"));
-    result->if_parent = convert_node(node->get<Table>("if_parent"));
+    result->exp = convert<Pointer<Node>>(node->get<Table>("exp"));
+    result->if_parent = convert<Pointer<Node>>(node->get<Table>("if_parent"));
     result->if_block_n = node->get<integer>("if_block_n");
     result->block_returns = node->get<boolean>("block_returns");
 
-    result->var = convert_node(node->get<Table>("var"));
-    result->from = convert_node(node->get<Table>("from"));
-    result->to = convert_node(node->get<Table>("to"));
-    result->step = convert_node(node->get<Table>("step"));
+    result->var = convert<Pointer<Node>>(node->get<Table>("var"));
+    result->from = convert<Pointer<Node>>(node->get<Table>("from"));
+    result->to = convert<Pointer<Node>>(node->get<Table>("to"));
+    result->step = convert<Pointer<Node>>(node->get<Table>("step"));
 
-    result->vars = convert_node(node->get<Table>("vars"));
-    result->exps = convert_node(node->get<Table>("exps"));
+    result->vars = convert<Pointer<Node>>(node->get<Table>("vars"));
+    result->exps = convert<Pointer<Node>>(node->get<Table>("exps"));
 
     //fuck this
     result->newtype = ({
         //fuck you
         decltype(result->newtype) res;
-        auto ty = convert_type(node->get<Table>("newtype"));
+        auto ty = convert<Pointer<Type>>(node->get<Table>("newtype"));
 
         if (ty->type_name == TypeName::TYPEALIAS)
-            res = Pointer<TypeAliasType>(dynamic_cast<TypeAliasType *>(ty.release()));
+            res = unique_ptr_cast<TypeAliasType>(std::move(ty));
         else if (ty->type_name == TypeName::TYPEDECL)
-            res = Pointer<TypeDeclType>(dynamic_cast<TypeDeclType *>(ty.release()));
+            res = unique_ptr_cast<TypeDeclType>(std::move(ty));
 
         std::move(res);
     });
@@ -319,34 +501,34 @@ static Pointer<Node> convert_node(const Table &node)
         }
         op;
     });
-    result->e1 = convert_node(node->get<Table>("e1"));
-    result->e2 = convert_node(node->get<Table>("e2"));
+    result->e1 = convert<Pointer<Node>>(node->get<Table>("e1"));
+    result->e2 = convert<Pointer<Node>>(node->get<Table>("e2"));
 
     result->constnum = node->get<number>("constnum");
     result->conststr = node->get<string>("conststr");
     result->failstore = node->get<boolean>("failstore");
     result->discarded_tuple = node->get<boolean>("discarded_tuple");
-    result->receiver = convert_type(node->get<Table>("receiver"));
+    result->receiver = convert<Pointer<Type>>(node->get<Table>("receiver"));
 
     result->array_len = node->get<integer>("array_len");
 
     result->label = node->get<string>("label");
     result->used_label = node->get<boolean>("used_label");
 
-    result->casttype = convert_type(node->get<Table>("casttype"));
+    result->casttype = convert<Pointer<Type>>(node->get<Table>("casttype"));
 
     result->is_lvalue = node->get<boolean>("is_lvalue");
 
-    result->macrodef = convert_node(node->get<Table>("macrodef"));
-    result->expanded = convert_node(node->get<Table>("expanded"));
+    result->macrodef = convert<Pointer<Node>>(node->get<Table>("macrodef"));
+    result->expanded = convert<Pointer<Node>>(node->get<Table>("expanded"));
 
-    result->argtype = convert_type(node->get<Table>("argtype"));
-    result->itemtype = convert_type(node->get<Table>("itemtype"));
-    result->decltuple = Pointer<TupleType>(dynamic_cast<TupleType *>(convert_type(node->get<Table>("decltuple")).release()));
+    result->argtype = convert<Pointer<Type>>(node->get<Table>("argtype"));
+    result->itemtype = convert<Pointer<Type>>(node->get<Table>("itemtype"));
+    result->decltuple = unique_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("decltuple")));
 
     result->opt = node->get<boolean>("opt");
 
-    result->debug_type = convert_type(node->get<Table>("debug_type"));
+    result->debug_type = convert<Pointer<Type>>(node->get<Table>("debug_type"));
 
     return result;
 }
@@ -357,11 +539,11 @@ Node &&Node::convert_from_lua(const std::string &input, const std::string &filen
     if (errors.size() > 0) {
         auto errs = std::vector<Error>(errors.size());
         for (size_t i = 0; i < errors.size(); i++) {
-            errs[i] = convert_error(errors[i + 1]);
+            errs[i] = *convert<Optional<Error>>(errors[i + 1]);
         }
 
         throw ConvertException(errs);
     }
 
-    return std::move(*convert_node(ast));
+    return std::move(*convert<Pointer<Node>>(ast));
 }

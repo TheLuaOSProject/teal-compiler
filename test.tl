@@ -1,7 +1,3 @@
-global function main(cli_args: {string})
-    print("Hello World!")
-    print("CLI args:")
-    for i, v in ipairs(cli_args) do
-        print(i, v)
-    end
+global function main()
+    local i = 10 + 3
 end

@@ -632,7 +632,7 @@ namespace teal::raw
         integer x;
         string f;
 
-        // virtual ~Where() = 0; // technically it is an interface but it doesn't make sense to be
+        // virtual ~Where() = default; // technically it is an interface but it doesn't make sense to be
     };
 
     struct Error {
@@ -722,31 +722,28 @@ namespace teal::raw
     };
 
     struct Type : Where {
-        integer y;
-        integer x;
-
         TypeName type_name;
         integer type_id;
         Optional<Where> inferred_at;
         boolean needs_compat;
 
-        virtual ~Type() = 0;
+        virtual ~Type() = default;
     };
 
-    struct StringType : Type {
+    struct StringType final : Type {
         TypeName type_name = TypeName::STRING;
         string literal;
     };
 
     struct NumericType : Type {
-        virtual ~NumericType() = 0;
+        virtual ~NumericType() = default;
     };
 
-    struct IntegerType : NumericType {
+    struct IntegerType final : NumericType {
         TypeName type_name = TypeName::INTEGER;
     };
 
-    struct BooleanType : Type {
+    struct BooleanType final : Type {
         TypeName type_name = TypeName::BOOLEAN;
     };
 
@@ -758,7 +755,7 @@ namespace teal::raw
         ~TypeDeclType() = default;
     };
 
-    struct NominalType : Type {
+    struct NominalType final : Type {
         Array<std::string> names;
         Array<Pointer<Type>> typevals;
         Pointer<Type> found;
@@ -770,7 +767,7 @@ namespace teal::raw
         Array<Pointer<Type>> consttypes;
         integer inferred_len;
 
-        virtual ~ArrayLikeType() = 0;
+        virtual ~ArrayLikeType() = default;
     };
 
     struct TypeAliasType : Type {
@@ -782,15 +779,14 @@ namespace teal::raw
         ~TypeAliasType() = default;
     };
 
-    struct LiteralTableItemType : Type {
+    struct LiteralTableItemType final : Type {
         TypeName type_name = TypeName::LITERAL_TABLE_ITEM;
 
         string kname;
         Pointer<Type> ktype;
         Pointer<Type> vtype;
     };
-
-    struct Scope {
+    struct [[gnu::unused]] Scope {
         Map<string, Variable> vars;
         Map<string, Pointer<Node>> labels;
         Map<string, Array<Pointer<Node>>> pending_labels;
@@ -802,96 +798,97 @@ namespace teal::raw
     struct HasTypeArgs {
         Array<Pointer<Type>> typeargs;
 
-        virtual ~HasTypeArgs() = 0;
+        virtual ~HasTypeArgs() = default;
     };
 
     struct HasDeclName {
         string declname;
 
-        virtual ~HasDeclName() = 0;
+        virtual ~HasDeclName() = default;
     };
 
     struct HasIsTotal {
         boolean is_total;
         Array<string> missing;
 
-        virtual ~HasIsTotal() = 0;
+        virtual ~HasIsTotal() = default;
     };
 
-    struct ArrayType : ArrayLikeType {
+    struct ArrayType final : ArrayLikeType {
         TypeName type_name = TypeName::ARRAY;
     };
 
     struct RecordLikeType : HasTypeArgs, HasDeclName, ArrayLikeType {
-        Array<Union<ArrayType, NominalType>> interface_list;
+        //This is really an Array<Union<ArrayType, NominalType>> but it is faster and easier to do it like this
+        Array<Pointer<Type>> interface_list;
         boolean interfaces_expanded;
-        Array<string> fields;
+        Map<string, Pointer<Type>> fields;
         Array<string> field_order;
-        Array<string> meta_fields;
+        Map<string, Pointer<Type>> meta_fields;
         Array<string> meta_field_order;
         boolean is_userdata;
 
-        virtual ~RecordLikeType() = 0;
+        virtual ~RecordLikeType() = default;
     };
 
-    struct RecordType : RecordLikeType, HasIsTotal {
+    struct RecordType final : RecordLikeType, HasIsTotal {
         TypeName type_name = TypeName::RECORD;
     };
 
-    struct InterfaceType : RecordLikeType {
+    struct InterfaceType final : RecordLikeType {
         TypeName type_name = TypeName::INTERFACE;
     };
 
-    struct InvalidType : Type {
+    struct InvalidType final : Type {
         TypeName type_name = TypeName::INVALID;
     };
 
-    struct UnknownType : Type {
+    struct UnknownType final : Type {
         TypeName type_name = TypeName::UNKNOWN;
     };
 
-    struct TupleType : Type {
+    struct TupleType final : Type {
         TypeName type_name = TypeName::TUPLE;
 
         boolean is_va;
         Array<Pointer<Type>> tuple;
     };
 
-    struct TypeArgType : Type {
+    struct TypeArgType final : Type {
         TypeName type_name = TypeName::TYPEARG;
 
         string typearg;
         Pointer<Type> constraint;
     };
 
-    struct UnresolvedTypeArgType : Type {
+    struct UnresolvedTypeArgType final : Type {
         TypeName type_name = TypeName::UNRESOLVED_TYPEARG;
 
         string typearg;
         Pointer<Type> constraint;
     };
 
-    struct UnresolvableTypeArgType : Type {
+    struct UnresolvableTypeArgType final : Type {
         TypeName type_name = TypeName::UNRESOLVABLE_TYPEARG;
 
         string typearg;
     };
 
-    struct TypeVarType : Type {
+    struct TypeVarType final : Type {
         TypeName type_name = TypeName::TYPEVAR;
 
         string typevar;
         Pointer<Type> constraint;
     };
 
-    struct MapType : Type, HasIsTotal {
+    struct MapType final : Type, HasIsTotal {
         TypeName type_name = TypeName::MAP;
 
         Pointer<Type> keys;
         Pointer<Type> values;
     };
 
-    struct EmptyTableType : Type {
+    struct EmptyTableType final : Type {
         TypeName type_name = TypeName::EMPTYTABLE;
 
         Pointer<Node> declared_at;
@@ -899,13 +896,13 @@ namespace teal::raw
         Pointer<Type> keys;
     };
 
-    struct UnresolvedEmptyTableValueType : Type {
+    struct UnresolvedEmptyTableValueType final : Type {
         TypeName type_name = TypeName::UNRESOLVED_EMPTYTABLE_VALUE;
 
         Pointer<EmptyTableType> emptytable_type;
     };
 
-    struct FunctionType : Type, HasTypeArgs {
+    struct FunctionType final : Type, HasTypeArgs {
         TypeName type_name = TypeName::FUNCTION;
 
         boolean is_method;
@@ -918,24 +915,24 @@ namespace teal::raw
     struct AggregateType : Type {
         Array<Pointer<Type>> types;
 
-        virtual ~AggregateType() = 0;
+        virtual ~AggregateType() = default;
     };
 
-    struct UnionType : AggregateType {
+    struct UnionType final : AggregateType {
         TypeName type_name = TypeName::UNION;
     };
 
-    struct TupleTableType : AggregateType {
+    struct TupleTableType final : AggregateType {
         TypeName type_name = TypeName::TUPLETABLE;
     };
 
-    struct PolyType : AggregateType {
+    struct PolyType final : AggregateType {
         TypeName type_name = TypeName::POLY;
 
         Array<Pointer<FunctionType>> types;
     };
 
-    struct EnumType : Type, HasDeclName {
+    struct EnumType final : Type, HasDeclName {
         TypeName type_name = TypeName::ENUM;
 
         Map<string, boolean> enumset;
@@ -1014,7 +1011,7 @@ namespace teal::raw
         Where w;
         boolean no_infer;
 
-        virtual ~Fact() = 0;
+        virtual ~Fact() = default;
     };
 
     struct TruthyFact : Fact {

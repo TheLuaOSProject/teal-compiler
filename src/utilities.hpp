@@ -32,3 +32,13 @@
 
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
+
+template<typename TTo, typename TFrom> requires std::is_base_of_v<TFrom, TTo>
+constexpr inline std::unique_ptr<TTo> unique_ptr_cast(std::unique_ptr<TFrom> &&from)
+{
+    //make sure the types are ACTUALLY related
+    if (not dynamic_cast<TTo *>(from.get()))
+        throw std::bad_cast();
+
+    return std::unique_ptr<TTo>(static_cast<TTo *>(from.release()));
+}
