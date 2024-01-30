@@ -19,72 +19,27 @@
 
 #include "RawAST.hpp"
 
-class Event {
-public:
-    virtual bool should_fire() = 0;
-    virtual bool fire() = 0; // return true if event should be removed
-    virtual ~Event() = 0;
-};
-
-class TimerEvent : public Event {
-public:
-    TimerEvent(std::chrono::milliseconds interval, std::function<void ()> &&callback) : _interval(interval), _callback(std::move(callback)) {}
-
-    bool should_fire() override
-    {  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now() - _last_fire) >= _interval; }
-
-    bool fire() override {
-        _callback();
-        _last_fire = std::chrono::high_resolution_clock::now();
-        return false;
-    }
-
-private:
-    std::chrono::milliseconds _interval;
-    std::function<void()> _callback;
-    std::chrono::high_resolution_clock::time_point _last_fire = std::chrono::high_resolution_clock::now();
-};
-
-class RunLoop {
-public:
-    void add_event(std::unique_ptr<Event> &&event) {
-        _events.push_back(std::move(event));
-    }
-
-    void run() {
-        while (true) {
-            for (auto &&event : _events) {
-                if (event->should_fire()) {
-                    auto rm = event->fire();
-                    if (rm)
-                        _events.erase(std::remove_if(_events.begin(), _events.end(), [&](auto &&e) { return e.get() == event.get(); }), _events.end());
-                }
-            }
+static void debug_ast_traverse(const DxPtr::omni_ptr<teal::raw::Node> &node)
+{
+    std::println("tk: {}, kind: {}, children.size(): {}", *node->tk, magic_enum::enum_name(*node->kind), node->children->size());
+    if (node->children.has_value() and not node->children->empty()) {
+        for (auto &child : *node->children) {
+            debug_ast_traverse(child);
         }
     }
-
-private:
-    std::vector<std::unique_ptr<Event>> _events;
-};
+}
 
 int main()
 {
-    RunLoop loop;
-    loop.add_event(std::make_unique<TimerEvent>(std::chrono::milliseconds(1000), []() { std::println("Hello"); }));
-    loop.run();
-
-    // std::filesystem::path path = "test.tl";
-    // auto contents = ({
-    //     auto file = std::ifstream(path);
-    //     std::string contents;
-    //     file.seekg(0, std::ios::end);
-    //     contents.reserve(file.tellg());
-    //     file.seekg(0, std::ios::beg);
-    //     contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
-    //     contents;
-    // });
+    std::filesystem::path path = "test.tl";
+    auto file = std::ifstream(path);
+    std::string contents;
+    file.seekg(0, std::ios::end);
+    contents.reserve(file.tellg());
+    file.seekg(0, std::ios::beg);
+    contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
 
-    // auto ast = teal::raw::Node::convert_from_lua(contents, "test.teal");
-    // std::println("tk: {}, kind: {}, children.size(): {}", ast.tk.value(), magic_enum::enum_name(ast.kind.value()),  ast.children->size());
+    auto ast = teal::raw::Node::convert_from_lua(contents, "test.teal");
+    debug_ast_traverse(ast);
 }

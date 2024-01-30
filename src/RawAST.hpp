@@ -617,7 +617,9 @@ namespace teal::raw
 
     //No value can be represented as `nullptr`
     template<typename T>
-    using Pointer = std::unique_ptr<T>;
+    using Pointer = DxPtr::omni_ptr<T>;
+    // using Pointer = std::shared_ptr<T>; //must be shared because of weird casting stuff!
+    // using Pointer = std::unique_ptr<T>;
     template<typename T>
     using Array = Optional<std::vector<T>>;
     template<typename ...T>
@@ -1151,7 +1153,7 @@ namespace teal::raw
         Node() = default;
         Node(Node &&) = default;
 
-        static Node &&convert_from_lua(const std::string &input, const std::string &filename = "");
+        static Pointer<Node> convert_from_lua(const std::string &input, const std::string &filename = "");
     };
 
     class ConvertException : public std::exception {

@@ -147,10 +147,6 @@ Array<std::string> convert_array<std::string>(const Table &node)
 
 template<>
 [[nodiscard]]
-Pointer<Type> convert<Pointer<Type>>(const Table &node);
-
-template<>
-[[nodiscard]]
 Pointer<Type> convert<Pointer<Type>>(const Table &node)
 {
     if (not node.has_value()
@@ -193,24 +189,24 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
 
     switch (*type_name) {
     case TypeName::STRING: {
-        auto s = std::make_unique<StringType>();
+        auto s = DxPtr::make_omni<StringType>();
         s->literal = node->get<string>("literal");
         result = std::move(s);
         break;
     }
 
     case TypeName::INTEGER: {
-        result = std::make_unique<IntegerType>();
+        result = DxPtr::make_omni<IntegerType>();
         break;
     }
 
     case TypeName::BOOLEAN: {
-        result = std::make_unique<BooleanType>();
+        result = DxPtr::make_omni<BooleanType>();
         break;
     }
 
     case TypeName::TYPEDECL: {
-        auto s = std::make_unique<TypeDeclType>();
+        auto s = DxPtr::make_omni<TypeDeclType>();
         s->def = convert<Pointer<Type>>(node->get<Table>("def"));
         s->closed = node->get<boolean>("closed");
         result = std::move(s);
@@ -218,7 +214,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::NOMINAL: {
-        auto s = std::make_unique<NominalType>();
+        auto s = DxPtr::make_omni<NominalType>();
         s->names = convert_array<std::string>(node->get<Table>("names"));
         s->typevals = convert_array<Pointer<Type>>(node->get<Table>("typevals"));
         s->found = convert<Pointer<Type>>(node->get<Table>("found"));
@@ -228,7 +224,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::LITERAL_TABLE_ITEM: {
-        auto s = std::make_unique<LiteralTableItemType>();
+        auto s = DxPtr::make_omni<LiteralTableItemType>();
         s->kname = node->get<string>("kname");
         s->ktype = convert<Pointer<Type>>(node->get<Table>("ktype"));
         s->vtype = convert<Pointer<Type>>(node->get<Table>("vtype"));
@@ -237,40 +233,40 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::ARRAY: {
-        auto s = std::make_unique<ArrayType>();
+        auto s = DxPtr::make_omni<ArrayType>();
         convert_array_like_type(node, s.get());
         result = std::move(s);
         break;
     }
 
     case TypeName::RECORD: {
-        auto s = std::make_unique<RecordType>();
+        auto s = DxPtr::make_omni<RecordType>();
         parse_record_like_type(node, s.get());
         result = std::move(s);
         break;
     }
 
     case TypeName::INTERFACE: {
-        auto s = std::make_unique<InterfaceType>();
+        auto s = DxPtr::make_omni<InterfaceType>();
         parse_record_like_type(node, s.get());
         result = std::move(s);
         break;
     }
 
     case TypeName::INVALID: {
-        auto s = std::make_unique<InvalidType>();
+        auto s = DxPtr::make_omni<InvalidType>();
         result = std::move(s);
         break;
     }
 
     case TypeName::UNKNOWN: {
-        auto s = std::make_unique<UnknownType>();
+        auto s = DxPtr::make_omni<UnknownType>();
         result = std::move(s);
         break;
     }
 
     case TypeName::TUPLE: {
-        auto s = std::make_unique<TupleType>();
+        auto s = DxPtr::make_omni<TupleType>();
         s->is_va = node->get<boolean>("is_va");
         s->tuple = convert_array<Pointer<Type>>(node->get<Table>("tuple"));
         result = std::move(s);
@@ -278,7 +274,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::TYPEARG: {
-        auto s = std::make_unique<TypeArgType>();
+        auto s = DxPtr::make_omni<TypeArgType>();
         s->typearg = node->get<string>("typearg");
         s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
         result = std::move(s);
@@ -286,7 +282,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::UNRESOLVED_TYPEARG: {
-        auto s = std::make_unique<UnresolvedTypeArgType>();
+        auto s = DxPtr::make_omni<UnresolvedTypeArgType>();
         s->typearg = node->get<string>("typearg");
         s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
         result = std::move(s);
@@ -294,14 +290,14 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::UNRESOLVABLE_TYPEARG: {
-        auto s = std::make_unique<UnresolvableTypeArgType>();
+        auto s = DxPtr::make_omni<UnresolvableTypeArgType>();
         s->typearg = node->get<string>("typearg");
         result = std::move(s);
         break;
     }
 
     case TypeName::TYPEVAR: {
-        auto s = std::make_unique<TypeVarType>();
+        auto s = DxPtr::make_omni<TypeVarType>();
         s->typevar = node->get<string>("typevar");
         s->constraint = convert<Pointer<Type>>(node->get<Table>("constraint"));
         result = std::move(s);
@@ -309,7 +305,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::MAP: {
-        auto s = std::make_unique<MapType>();
+        auto s = DxPtr::make_omni<MapType>();
         s->is_total = node->get<boolean>("is_total");
         s->missing = convert_array<string>(node->get<Table>("missing"));
         s->keys = convert<Pointer<Type>>(node->get<Table>("keys"));
@@ -319,7 +315,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::EMPTYTABLE: {
-        auto s = std::make_unique<EmptyTableType>();
+        auto s = DxPtr::make_omni<EmptyTableType>();
         s->declared_at  = convert<Pointer<Node>>(node->get<Table>("declared_at"));
         s->assigned_to  = node->get<string>("assigned_to");
         s->keys         = convert<Pointer<Type>>(node->get<Table>("keys"));
@@ -328,17 +324,17 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     }
 
     case TypeName::UNRESOLVED_EMPTYTABLE_VALUE: {
-        auto s = std::make_unique<UnresolvedEmptyTableValueType>();
-        s->emptytable_type = unique_ptr_cast<EmptyTableType>(convert<Pointer<Type>>(node->get<Table>("emptytable_type")));
+        auto s = DxPtr::make_omni<UnresolvedEmptyTableValueType>();
+        s->emptytable_type = derived_ptr_cast<EmptyTableType>(convert<Pointer<Type>>(node->get<Table>("emptytable_type")));
         result = std::move(s);
         break;
     }
 
     case TypeName::FUNCTION: {
-        auto s = std::make_unique<FunctionType>();
+        auto s = DxPtr::make_omni<FunctionType>();
         s->is_method = node->get<boolean>("is_method");
         s->min_arity = node->get<integer>("min_arity");
-        s->args = unique_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("args")));
+        s->args = derived_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("args")));
     }
 
     default:
@@ -372,7 +368,7 @@ Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
     //Match the enum kind to the real C++ enum
     if (kind == "...") result = NodeKind::VARARGS;
     else {
-        result = magic_enum::enum_cast<NodeKind>(*kind, [](auto l, auto r) { return ::tolower(l) == ::tolower(r); });
+        result = magic_enum::enum_cast<NodeKind>(*kind, [](char l, char r) { return ::tolower(l) == ::tolower(r); });
     }
 
     return result;
@@ -388,7 +384,7 @@ Array<TypeArgType> convert_array<TypeArgType>(const Table &node)
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
-            result.emplace_back(std::move(*unique_ptr_cast<TypeArgType>(convert<Pointer<Type>>(x))));
+            result.emplace_back(std::move(*derived_ptr_cast<TypeArgType>(convert<Pointer<Type>>(x))));
     }
 
     return result;
@@ -415,10 +411,10 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullptr;
 
-    auto result = std::make_unique<Node>();
+    auto result = DxPtr::make_omni<Node>();
 
     result->children = convert_array<Pointer<Node>>(node);
-    result->tk = node->get<std::string>("tk");
+    result->tk = node->get<string>("tk");
     result->kind = convert_enum<NodeKind>(node->get<string>("kind"));
     result->symbol_list_slot = node->get<integer>("symbol_list_slot");
     result->semicolon = node->get<boolean>("semicolon");
@@ -476,13 +472,14 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
     //fuck this
     result->newtype = ({
         //fuck you
-        decltype(result->newtype) res;
+        decltype(result->newtype) res = nullopt;
         auto ty = convert<Pointer<Type>>(node->get<Table>("newtype"));
-
-        if (ty->type_name == TypeName::TYPEALIAS)
-            res = unique_ptr_cast<TypeAliasType>(std::move(ty));
-        else if (ty->type_name == TypeName::TYPEDECL)
-            res = unique_ptr_cast<TypeDeclType>(std::move(ty));
+        if (ty) {
+            if (ty->type_name == TypeName::TYPEALIAS)
+                res = derived_ptr_cast<TypeAliasType>(std::move(ty));
+            else if (ty->type_name == TypeName::TYPEDECL)
+                res = derived_ptr_cast<TypeDeclType>(std::move(ty));
+        }
 
         std::move(res);
     });
@@ -496,6 +493,8 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
             op->y = tbl->get<integer>("y");
             op->x = tbl->get<integer>("x");
             op->arity = tbl->get<integer>("arity");
+            auto opv = tbl->get<string>("op");
+            if (opv.has_value()) (void)*opv; //this prevents UBSan from triggering. No, I have no fucking clue why or how
             op->op = tbl->get<string>("op");
             op->prec = tbl->get<integer>("prec");
         }
@@ -524,7 +523,7 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
 
     result->argtype = convert<Pointer<Type>>(node->get<Table>("argtype"));
     result->itemtype = convert<Pointer<Type>>(node->get<Table>("itemtype"));
-    result->decltuple = unique_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("decltuple")));
+    result->decltuple = derived_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("decltuple")));
 
     result->opt = node->get<boolean>("opt");
 
@@ -533,7 +532,7 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
     return result;
 }
 
-Node &&Node::convert_from_lua(const std::string &input, const std::string &filename)
+Pointer<Node> Node::convert_from_lua(const std::string &input, const std::string &filename)
 {
     auto [ast, errors, _] = TEAL.parse(input, filename);
     if (errors.size() > 0) {
@@ -545,5 +544,5 @@ Node &&Node::convert_from_lua(const std::string &input, const std::string &filen
         throw ConvertException(errs);
     }
 
-    return std::move(*convert<Pointer<Node>>(ast));
+    return convert<Pointer<Node>>(ast);
 }

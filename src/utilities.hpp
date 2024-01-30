@@ -33,12 +33,13 @@
 #define SOL_ALL_SAFETIES_ON 1
 #include <sol/sol.hpp>
 
-template<typename TTo, typename TFrom> requires std::is_base_of_v<TFrom, TTo>
-constexpr inline std::unique_ptr<TTo> unique_ptr_cast(std::unique_ptr<TFrom> &&from)
-{
-    //make sure the types are ACTUALLY related
-    if (not dynamic_cast<TTo *>(from.get()))
-        throw std::bad_cast();
+#include "DxPtr.hpp"
 
-    return std::unique_ptr<TTo>(static_cast<TTo *>(from.release()));
+template<typename TTo, typename TFrom> requires std::is_base_of_v<TFrom, TTo>
+constexpr inline DxPtr::omni_ptr<TTo> derived_ptr_cast(DxPtr::omni_ptr<TFrom> &&from)
+{
+    if (not from) return nullptr; // nullptr -> nullptr, all good
+    auto newptr = DxPtr::dynamic_pointer_cast<TTo>(std::move(from));
+    if (not newptr) throw std::bad_cast();
+    return newptr;
 }
