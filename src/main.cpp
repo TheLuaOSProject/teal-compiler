@@ -21,33 +21,27 @@
 
 static void debug_ast_traverse(const DxPtr::omni_ptr<teal::raw::Node> &node, int depth = 2)
 {
-    std::println("Node at {} ({}:{})", static_cast<void *>(node.get()), *node->yend, *node->xend);
-    std::println("{}tk: {}, kind: {}, children.size(): {}", std::string(depth, ' '), *node->tk, magic_enum::enum_name(*node->kind), node->children.has_value() ? node->children->size() : 0);
-    if (node->children.has_value() and not node->children->empty()) {
-        for (size_t i = 0; i < node->children->size(); i++) {
-            std::println("{}child[{}]:", std::string(depth, ' '), i);
-            debug_ast_traverse(node->children->at(i), depth + 4);
-        }
+    std::println("{}Node at {} ({}:{})", std::string(static_cast<size_t>(depth-2), ' '), static_cast<void *>(node.get()), *node->yend, *node->xend);
+    std::println("{}tk: {}, kind: {}, children.size(): {}", std::string(static_cast<size_t>(depth), ' '), *node->tk, magic_enum::enum_name(*node->kind), node->children.has_value() ? node->children->size() : 0);
 
-        // for (auto &child : *node->children) {
-        //     debug_ast_traverse(child, depth + 4);
-        // }
+    if (node->children.has_value() and not node->children->empty()) {
+        for (auto &child : *node->children) {
+            debug_ast_traverse(child, depth + 4);
+        }
     }
 }
 
-int main()
+int main(int argc, const char *argv[])
 {
-    std::filesystem::path path = "test.tl";
+    std::filesystem::path path = argc > 1 ? argv[1] : "test.tl";
     auto file = std::ifstream(path);
     std::string contents;
     file.seekg(0, std::ios::end);
-    contents.reserve(file.tellg());
+    contents.reserve(static_cast<size_t>(file.tellg()));
     file.seekg(0, std::ios::beg);
     contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
 
     auto [ast, raw] = teal::raw::Node::convert_from_lua(contents, "test.teal");
     debug_ast_traverse(ast);
-    // sol::table pl_pretty = teal::raw::TEAL.lua_state.globals()["require"]("pl.pretty");
-    // pl_pretty["dump"](raw);
 }

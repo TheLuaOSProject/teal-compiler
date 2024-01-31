@@ -6,23 +6,35 @@ local packages = {
 
 local sanitizers = { "address", "leak", "undefined" }
 
+local function no(x) return "-Wno-"..x end
+
 local cxxflags = {
     release = {
         "-Weverything",
-        "-Wno-c++98-compat", "-Wno-c++20-extensions",
-        "-Wno-shadow-field-in-constructor",
-        "-Wno-unsafe-buffer-usage",
-        "-Wno-weak-vtables",
-        "-Wno-padded",
-        "-Wno-gnu-designator"
+        no"c++98-compat",
+        no"c++20-extensions",
+        no"shadow-field-in-constructor",
+        no"unsafe-buffer-usage",
+        no"weak-vtables",
+        no"padded",
+        no"gnu-designator",
+        no"pre-c++20-compat-pedantic",
+        no"exit-time-destructors",
+        no"c++98-compat-pedantic",
+        no"global-constructors",
+        no"gnu-statement-expression",
+        no"shadow-uncaptured-local",
+        no"switch-enum",
+        no"deprecated-copy-with-dtor"
     },
     debug = {
-        "-Wno-unused-function", "-Wno-unused-parameter", "-Wno-unused-variable"
+        no"unused-function", no"unused-parameter", no"unused-variable"
     },
     regular = {
         "-Wall", "-Wextra", "-Werror",
         "-stdlib=libc++",
-        "-Wno-c99-designator"
+        no"c99-designator",
+        no"shadow-field"
     }
 }
 

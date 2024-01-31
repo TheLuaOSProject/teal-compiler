@@ -26,7 +26,7 @@ using namespace teal::raw;
 
 template<typename T>
 [[nodiscard]]
-static T convert(const Table &node)
+static T convert(const Table &)
 { static_assert(sizeof(T) == 0, "Use specialisations of this function"); }
 
 
@@ -91,7 +91,8 @@ Array<T> convert_array(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
-    auto result = std::vector<T>(node->size());
+    auto result = std::vector<T>();
+    result.reserve(node->size());
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
@@ -122,7 +123,8 @@ Array<std::string> convert_array<std::string>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
-    auto result = std::vector<std::string>(node->size());
+    auto result = std::vector<std::string>();
+    result.reserve(node->size());
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::string)
@@ -154,7 +156,8 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
     const auto parse_record_like_type = [](const Table &node, RecordLikeType *to) {
         to->interface_list = ({ // I cant care enough to make a proper specialisation
             auto tbl = node->get<Table>("interface_list").value();
-            auto result = std::vector<Pointer<Type>>(tbl.size());
+            auto result = std::vector<Pointer<Type>>();
+            result.reserve(tbl.size());
 
             for (size_t i = 0; i < tbl.size(); i++) {
                 auto x = tbl.get<sol::table>(i+1);
@@ -321,11 +324,12 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
         s->is_method = node->get<boolean>("is_method");
         s->min_arity = node->get<integer>("min_arity");
         s->args = derived_ptr_cast<TupleType>(convert<Pointer<Type>>(node->get<Table>("args")));
+        break;
     }
 
     default:
         throw std::runtime_error("Unknown type name: "s + *node->get<string>("type_name"));
-    };
+    }
 
     result->x = node->get<integer>("x");
     result->y = node->get<integer>("y");
@@ -338,7 +342,7 @@ Pointer<Type> convert<Pointer<Type>>(const Table &node)
 }
 
 [[nodiscard]]
-static Pointer<Fact> convert_fact(const Table &node)
+static Pointer<Fact> convert_fact(const Table &)
 {
     return nullptr;
 }
@@ -362,15 +366,16 @@ Optional<NodeKind> convert_enum<NodeKind>(const string &kind)
 
 template<>
 [[nodiscard]]
-Array<TypeArgType> convert_array<TypeArgType>(const Table &node)
+Array<Pointer<TypeArgType>> convert_array<Pointer<TypeArgType>>(const Table &node)
 {
     if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
 
-    auto result = std::vector<TypeArgType>(node->size());
+    auto result = std::vector<Pointer<TypeArgType>>();
+    result.reserve(node->size());
     for (size_t i = 0; i < node->size(); i++) {
         auto x = (*node)[i + 1];
         if (x.get_type() == sol::type::table)
-            result.emplace_back(std::move(*derived_ptr_cast<TypeArgType>(convert<Pointer<Type>>(x))));
+            result.emplace_back(derived_ptr_cast<TypeArgType>(convert<Pointer<Type>>(x)));
     }
 
     return result;
@@ -380,19 +385,25 @@ template<>
 [[nodiscard]]
 Array<Pointer<Node>> convert_array<Pointer<Node>>(const Table &node)
 {
-    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table)
+    if (not node.has_value()
+     or not node->valid()
+     or     node->get_type() != sol::type::table
+     or     node->size() == 0)
         return nullopt;
 
-    auto result = std::vector<Pointer<Node>>(node->size());
+    auto result = std::vector<Pointer<Node>>();
+    result.reserve(node->size());
     for (size_t i = 1; i <= node->size(); i++) {
         Table x = (*node)[i];
-        if (not x.has_value())
+        if (not x.has_value() or not x->valid() or x->get_type() != sol::type::table)
             throw std::runtime_error(std::format("Node at index {} is not a valid table!", i));
+
         auto ptr = convert<Pointer<Node>>(x);
-        if (ptr == nullptr)
+        if (not ptr)
             throw std::runtime_error(std::format("Node ({})[{}] is not a valid node!", static_cast<const void *>(&node), i));
         result.emplace_back(std::move(ptr));
     }
+
     return result;
 }
 
@@ -406,15 +417,6 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
     auto result = DxPtr::make_omni<Node>();
 
     result->children = convert_array<Pointer<Node>>(node);
-    //verify all children are valid
-    if (result->children.has_value()) {
-        for (size_t i = 0; i < result->children->size(); i++) {
-            if (not result->children->at(i)) {
-                throw std::runtime_error(std::format("Node at index {} is not a valid node!", i));
-            }
-        }
-    }
-
     result->tk = node->get<string>("tk");
     result->kind = convert_enum<NodeKind>(node->get<string>("kind"));
     result->symbol_list_slot = node->get<integer>("symbol_list_slot");
@@ -441,7 +443,7 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
     result->value = convert<Pointer<Node>>(node->get<Table>("value"));
     result->key_parsed = convert_enum<KeyParsed>(node->get<string>("key_parsed"));
 
-    result->typeargs = convert_array<TypeArgType>(node->get<Table>("typeargs"));
+    result->typeargs = convert_array<Pointer<TypeArgType>>(node->get<Table>("typeargs"));
     result->min_arity = node->get<integer>("min_arity");
     result->args = convert<Pointer<Node>>(node->get<Table>("args"));
     result->body = convert<Pointer<Node>>(node->get<Table>("body"));
@@ -494,9 +496,14 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
             op->y = tbl->get<integer>("y");
             op->x = tbl->get<integer>("x");
             op->arity = tbl->get<integer>("arity");
-            auto opv = tbl->get<string>("op");
-            if (opv.has_value()) (void)*opv; //this prevents UBSan from triggering. No, I have no fucking clue why or how
-            op->op = tbl->get<string>("op");
+            //This ONE ->get call is causing persistent UB
+            // TODO: Why?
+            // auto op_value = tbl->get<string>("op");
+            // if (op_value.has_value()) {
+            //     op->op = op_value;
+            // } else
+            //     op->op = nullopt;
+            // op->op = tbl->get<string>("op");
             op->prec = tbl->get<integer>("prec");
         }
 
@@ -538,7 +545,8 @@ std::tuple<Pointer<Node>, sol::table> Node::convert_from_lua(const std::string &
 {
     auto [ast, errors, _] = TEAL.parse(input, filename);
     if (errors.size() > 0) {
-        auto errs = std::vector<Error>(errors.size());
+        auto errs = std::vector<Error>();
+        errs.reserve(errors.size());
         for (size_t i = 0; i < errors.size(); i++) {
             errs[i] = *convert<Optional<Error>>(errors[i + 1]);
         }

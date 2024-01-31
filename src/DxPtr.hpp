@@ -296,7 +296,7 @@ namespace DxPtr {
                 );
 
                 std::ptrdiff_t offsetControl = 0;
-                std::ptrdiff_t offsetStored = controlRegionSize;
+                std::ptrdiff_t offsetStored = static_cast<std::ptrdiff_t>(controlRegionSize);
 
                 return allocation{
                       .alignment = alignTarget
@@ -497,7 +497,7 @@ namespace DxPtr {
                 swap(move);
 
                 return *this;
-            };
+            }
 
             // Destructor
             ~omni_ptr() {
@@ -709,12 +709,12 @@ namespace DxPtr {
 
         template<typename U, bool O, typename A>
         constexpr std::strong_ordering operator<=>(const omni_ptr<U, O, A>& lhs, std::nullptr_t) noexcept {
-            return std::compare_three_way{}(lhs.get(), (U*) nullptr);
+            return std::compare_three_way{}(lhs.get(), static_cast<U *>(nullptr));
         }
 
         template<typename U, bool O, typename A>
         constexpr std::strong_ordering operator<=>(std::nullptr_t, const omni_ptr<U, O, A>& rhs) noexcept {
-            return std::compare_three_way{}((U*) nullptr, rhs.get());
+            return std::compare_three_way{}(static_cast<U *>(nullptr), rhs.get());
         }
 
         template<typename U, bool O, typename A>

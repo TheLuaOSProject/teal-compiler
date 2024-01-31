@@ -9,7 +9,9 @@
             "request": "launch",
             "name": "Debug",
             "program": "${workspaceFolder}/build/macosx/x86_64/debug/TealCompiler",
-            "args": [],
+            "args": [
+                "teal/tl.tl"
+            ],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "Build"
         }

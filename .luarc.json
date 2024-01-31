@@ -1,0 +1,37 @@
+{
+    "diagnostics.groupSeverity": {
+        "ambiguity": "Error",
+        "await": "Error",
+        "codestyle": "Error",
+        "duplicate": "Hint",
+        "global": "Error",
+        "luadoc": "Error",
+        "redefined": "Information",
+        "strict": "Error",
+        "strong": "Error",
+        "type-check": "Error",
+        "unbalanced": "Error",
+        "unused": "Hint",
+        "conventions": "Error"
+    },
+    "diagnostics.disable": [
+        "duplicate-doc-alias",
+        "duplicate-doc-field"
+    ],
+    "workspace.library": [
+        "lua_modules/lib/lua/5.1/",
+        "lua_modules/share/lua/5.1/",
+        // "/Users/frityet/.vscode/extensions/sumneko.lua-3.7.4-darwin-x64/server/meta/47e10203",
+    ],
+    "runtime.path": [
+        "?.lua",
+        "?/init.lua"
+    ],
+    "workspace.useGitIgnore": false,
+    "runtime.pathStrict": true,
+    "runtime.version": "LuaJIT",
+    "workspace.ignoreDir": [
+        ".vscode",
+        ".luarocks"
+    ],
+}

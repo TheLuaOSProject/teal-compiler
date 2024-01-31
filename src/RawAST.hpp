@@ -753,7 +753,7 @@ namespace teal::raw
     };
 
     struct NumericType : Type {
-        virtual ~NumericType() = default;
+        virtual ~NumericType() override = default;
     };
 
     struct IntegerType final : NumericType {
@@ -769,7 +769,7 @@ namespace teal::raw
         Pointer<Type> def;
         boolean closed;
 
-        ~TypeDeclType() = default;
+        ~TypeDeclType() override = default;
     };
 
     struct NominalType final : Type {
@@ -784,7 +784,7 @@ namespace teal::raw
         Array<Pointer<Type>> consttypes;
         integer inferred_len;
 
-        virtual ~ArrayLikeType() = default;
+        virtual ~ArrayLikeType() override = default;
     };
 
     struct TypeAliasType : Type {
@@ -793,7 +793,7 @@ namespace teal::raw
         Pointer<NominalType> alias_to;
         boolean is_nested_alias;
 
-        ~TypeAliasType() = default;
+        ~TypeAliasType() override = default;
     };
 
     struct LiteralTableItemType final : Type {
@@ -845,7 +845,7 @@ namespace teal::raw
         Array<string> meta_field_order;
         boolean is_userdata;
 
-        virtual ~RecordLikeType() = default;
+        virtual ~RecordLikeType() override = default;
     };
 
     struct RecordType final : RecordLikeType, HasIsTotal {
@@ -932,7 +932,7 @@ namespace teal::raw
     struct AggregateType : Type {
         Array<Pointer<Type>> types;
 
-        virtual ~AggregateType() = default;
+        virtual ~AggregateType() override = default;
     };
 
     struct UnionType final : AggregateType {
@@ -1095,7 +1095,7 @@ namespace teal::raw
         Pointer<Node> value;
         Optional<KeyParsed> key_parsed;
 
-        Array<TypeArgType> typeargs;
+        Array<Pointer<TypeArgType>> typeargs;
         integer min_arity;
         Pointer<Node> args;
         Pointer<TupleType> rets;
