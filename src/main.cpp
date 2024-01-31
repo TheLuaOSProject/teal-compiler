@@ -19,13 +19,19 @@
 
 #include "RawAST.hpp"
 
-static void debug_ast_traverse(const DxPtr::omni_ptr<teal::raw::Node> &node)
+static void debug_ast_traverse(const DxPtr::omni_ptr<teal::raw::Node> &node, int depth = 2)
 {
-    std::println("tk: {}, kind: {}, children.size(): {}", *node->tk, magic_enum::enum_name(*node->kind), node->children->size());
+    std::println("Node at {} ({}:{})", static_cast<void *>(node.get()), *node->yend, *node->xend);
+    std::println("{}tk: {}, kind: {}, children.size(): {}", std::string(depth, ' '), *node->tk, magic_enum::enum_name(*node->kind), node->children.has_value() ? node->children->size() : 0);
     if (node->children.has_value() and not node->children->empty()) {
-        for (auto &child : *node->children) {
-            debug_ast_traverse(child);
+        for (size_t i = 0; i < node->children->size(); i++) {
+            std::println("{}child[{}]:", std::string(depth, ' '), i);
+            debug_ast_traverse(node->children->at(i), depth + 4);
         }
+
+        // for (auto &child : *node->children) {
+        //     debug_ast_traverse(child, depth + 4);
+        // }
     }
 }
 
@@ -40,6 +46,8 @@ int main()
     contents.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 
 
-    auto ast = teal::raw::Node::convert_from_lua(contents, "test.teal");
+    auto [ast, raw] = teal::raw::Node::convert_from_lua(contents, "test.teal");
     debug_ast_traverse(ast);
+    // sol::table pl_pretty = teal::raw::TEAL.lua_state.globals()["require"]("pl.pretty");
+    // pl_pretty["dump"](raw);
 }

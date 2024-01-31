@@ -604,6 +604,21 @@ end
 
 namespace teal::raw
 {
+
+    static struct Teal {
+        sol::state lua_state;
+        sol::table teal;
+
+        Teal()
+        {
+            lua_state.open_libraries();
+            teal = lua_state.do_file("teal/tl.lua");
+        }
+
+        std::tuple<sol::table, sol::table, sol::table> parse(const std::string &input, const std::string &filename)
+        { return teal["parse"](input, filename); }
+    } TEAL;
+
     //Every teal type can be nillable (because fuck you), so every field also must be optional here (because fuck you)
     template<typename T>
     using Optional = std::optional<T>;
@@ -1153,7 +1168,7 @@ namespace teal::raw
         Node() = default;
         Node(Node &&) = default;
 
-        static Pointer<Node> convert_from_lua(const std::string &input, const std::string &filename = "");
+        static std::tuple<Pointer<Node>, sol::table> convert_from_lua(const std::string &input, const std::string &filename = "");
     };
 
     class ConvertException : public std::exception {

@@ -1,3 +1,3 @@
-global function main()
-    local i = 10 + 3
+local function add(x: integer, y: integer): integer
+    return x + y
 end

@@ -24,20 +24,6 @@ using std::nullopt;
 using namespace std::string_literals;
 using namespace teal::raw;
 
-static struct Teal {
-    sol::state lua;
-    sol::table teal;
-
-    Teal()
-    {
-        lua.open_libraries();
-        teal = lua.do_file("teal/tl.lua");
-    }
-
-    std::tuple<sol::table, sol::table, sol::table> parse(const std::string &input, const std::string &filename)
-    { return teal["parse"](input, filename); }
-} TEAL;
-
 template<typename T>
 [[nodiscard]]
 static T convert(const Table &node)
@@ -394,13 +380,18 @@ template<>
 [[nodiscard]]
 Array<Pointer<Node>> convert_array<Pointer<Node>>(const Table &node)
 {
-    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullopt;
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table)
+        return nullopt;
 
     auto result = std::vector<Pointer<Node>>(node->size());
-    for (size_t i = 0; i < node->size(); i++) {
-        auto x = (*node)[i + 1];
-        if (x.get_type() == sol::type::table)
-            result.emplace_back(convert<Pointer<Node>>(x));
+    for (size_t i = 1; i <= node->size(); i++) {
+        Table x = (*node)[i];
+        if (not x.has_value())
+            throw std::runtime_error(std::format("Node at index {} is not a valid table!", i));
+        auto ptr = convert<Pointer<Node>>(x);
+        if (ptr == nullptr)
+            throw std::runtime_error(std::format("Node ({})[{}] is not a valid node!", static_cast<const void *>(&node), i));
+        result.emplace_back(std::move(ptr));
     }
     return result;
 }
@@ -409,11 +400,21 @@ template<>
 [[nodiscard]]
 Pointer<Node> convert<Pointer<Node>>(const Table &node)
 {
-    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table) return nullptr;
+    if (not node.has_value() or not node->valid() or node->get_type() != sol::type::table)
+        return nullptr;
 
     auto result = DxPtr::make_omni<Node>();
 
     result->children = convert_array<Pointer<Node>>(node);
+    //verify all children are valid
+    if (result->children.has_value()) {
+        for (size_t i = 0; i < result->children->size(); i++) {
+            if (not result->children->at(i)) {
+                throw std::runtime_error(std::format("Node at index {} is not a valid node!", i));
+            }
+        }
+    }
+
     result->tk = node->get<string>("tk");
     result->kind = convert_enum<NodeKind>(node->get<string>("kind"));
     result->symbol_list_slot = node->get<integer>("symbol_list_slot");
@@ -498,6 +499,7 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
             op->op = tbl->get<string>("op");
             op->prec = tbl->get<integer>("prec");
         }
+
         op;
     });
     result->e1 = convert<Pointer<Node>>(node->get<Table>("e1"));
@@ -532,7 +534,7 @@ Pointer<Node> convert<Pointer<Node>>(const Table &node)
     return result;
 }
 
-Pointer<Node> Node::convert_from_lua(const std::string &input, const std::string &filename)
+std::tuple<Pointer<Node>, sol::table> Node::convert_from_lua(const std::string &input, const std::string &filename)
 {
     auto [ast, errors, _] = TEAL.parse(input, filename);
     if (errors.size() > 0) {
@@ -544,5 +546,5 @@ Pointer<Node> Node::convert_from_lua(const std::string &input, const std::string
         throw ConvertException(errs);
     }
 
-    return convert<Pointer<Node>>(ast);
+    return { convert<Pointer<Node>>(ast), ast };
 }
