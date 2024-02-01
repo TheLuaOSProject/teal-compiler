@@ -22,6 +22,7 @@ profiler.start("10vzai1", "jit.p.out")
 local ffi = require("ffi")
 local teal = require("teal.tl")
 local gccjit = require("backends.gccjit")
+local pretty = require("pl.pretty")
 
 ---@param ret string
 ---@return fun(...: string): ffi.ctype*
@@ -44,6 +45,7 @@ local contents do
 end
 
 local ast, errs, modules = teal.parse(contents, in_f)
+pretty(ast)
 
 profiler.stop()
 
