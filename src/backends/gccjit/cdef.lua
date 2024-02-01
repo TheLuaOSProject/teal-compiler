@@ -16,6 +16,7 @@
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
 local ffi = require("ffi")
+require("jit") --teal type inport
 
 ffi.cdef [[
 typedef struct FILE FILE;

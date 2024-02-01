@@ -320,6 +320,7 @@ Struct.__len = Struct.get_field_count
 ---@param fields gccjit.Field*[]
 ---@param values gccjit.RValue*[]
 ---@param loc gccjit.Location*?
+---@return gccjit.RValue*
 function Context:new_struct_constructor(type, fields, values, loc)
     --fields and values must have the exact same length
     local num_fields = #fields
@@ -345,13 +346,15 @@ end
 
 ---@param type gccjit.Type*
 ---@param fields gccjit.RValue*[]
-function Context:new_array_constructor(type, fields)
+---@param loc gccjit.Location*?
+---@return gccjit.RValue*
+function Context:new_array_constructor(type, fields, loc)
     local num_fields = #fields
     local cfields = ffi.new("gcc_jit_rvalue*[?]", num_fields)
     for i = 1, num_fields do
         cfields[i-1] = (fields)[i]
     end
-    return libgccjit.gcc_jit_context_new_array_constructor(self, type, num_fields, cfields) --[[@as gccjit.RValue*]]
+    return libgccjit.gcc_jit_context_new_array_constructor(self, loc, type, num_fields, cfields) --[[@as gccjit.RValue*]]
 end
 
 ---@param ptr gccjit.RValue*
@@ -383,6 +386,7 @@ end
 ---@param param_types gccjit.Type*[]
 ---@param is_variadic boolean
 ---@param location gccjit.Location*?
+---@return gccjit.Type*
 function Context:new_function_ptr_type(return_type, param_types, is_variadic, location)
     local num_params = #param_types
     local cparams = ffi.new("gcc_jit_type*[?]", num_params)
@@ -569,7 +573,7 @@ end
 ---@param type gccjit.Type*
 ---@param location gccjit.Location*?
 ---@return gccjit.LValue*
-function Context:new_global(kind, name, type, location)
+function Context:new_global(kind, type, name, location)
     return libgccjit.gcc_jit_context_new_global(self, location, libgccjit["GCC_JIT_GLOBAL_"..kind:gsub(" ", "_"):upper()], type, name) --[[@as gccjit.LValue*]]
 end
 
@@ -616,11 +620,6 @@ function Context:null(type)
     return libgccjit.gcc_jit_context_null(self, type) --[[@as gccjit.RValue*]]
 end
 
----@param literal string
----@return gccjit.RValue*
-function Context:string_literal(literal)
-    return libgccjit.gcc_jit_context_new_string_literal(self, literal) --[[@as gccjit.RValue*]]
-end
 
 ---@alias gccjit.UnaryOperation
 ---| "minus"
@@ -723,7 +722,7 @@ end
 ---@param type gccjit.Type*
 ---@param location gccjit.Location*?
 ---@return gccjit.Param*
-function Context:new_param(name, type, location)
+function Context:new_param(type, name, location)
     return libgccjit.gcc_jit_context_new_param(self, location, type, name) --[[@as gccjit.Param*]]
 end
 

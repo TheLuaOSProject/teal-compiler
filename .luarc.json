@@ -19,6 +19,7 @@
         "duplicate-doc-field"
     ],
     "workspace.library": [
+        "types/",
         "lua_modules/lib/lua/5.1/",
         "lua_modules/share/lua/5.1/",
         // "/Users/frityet/.vscode/extensions/sumneko.lua-3.7.4-darwin-x64/server/meta/47e10203",

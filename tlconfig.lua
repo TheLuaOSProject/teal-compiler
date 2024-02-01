@@ -1,6 +1,7 @@
 return {
-    include_dir = {
-        "teal/",
-        "types/"
-    }
+   include_dir = {
+      "teal/",
+      "types/",
+      "src/"
+   }
 }

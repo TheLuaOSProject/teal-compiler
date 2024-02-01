@@ -5,3 +5,7 @@
 .cache
 t.*
 compile_commands.json
+/luarocks
+/lua
+/lua_modules
+/.luarocks
