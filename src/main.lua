@@ -15,12 +15,18 @@
 -- You should have received a copy of the GNU General Public License
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
+local profiler = require("jit.p")
+
+profiler.start("10vzai1", "jit.p.out")
+
 local ffi = require("ffi")
 local teal = require("teal.tl")
 local gccjit = require("backends.gccjit")
 
-local function fn(ret: string): function(...: string): ffi.CType
-    return function(...: string): ffi.CType
+---@param ret string
+---@return fun(...: string): ffi.ctype*
+local function fn(ret)
+    return function(...)
         return ffi.typeof(string.format("%s(*)(%s)", ret, table.concat({...}, ", ")) --[[@as ffi.ctype*]])
     end
 end
@@ -30,13 +36,14 @@ ctx:set_option("dump generated code", true)
 
 local in_f = arg[1] or "test.tl"
 
-local contents: string
-do
+---@type string
+local contents do
     local f = assert(io.open(in_f, "r"))
     contents = f:read("*a")
     f:close()
 end
 
-print(fn"void"("int", "int"))
+local ast, errs, modules = teal.parse(contents, in_f)
 
--- local ast, errs, modules = teal.parse(contents, in_f)
+profiler.stop()
+

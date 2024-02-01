@@ -1,0 +1,97 @@
+
+====== ./teal/tl.lua ======
+@@ 1 @@
+   3% | local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local assert = _tl_compat and _tl_compat.assert or assert; local debug = _tl_compat and _tl_compat.debug or debug; local io = _tl_compat and _tl_compat.io or io; local ipairs = _tl_compat and _tl_compat.ipairs or ipairs; local load = _tl_compat and _tl_compat.load or load; local math = _tl_compat and _tl_compat.math or math; local _tl_math_maxinteger = math.maxinteger or math.pow(2, 53); local os = _tl_compat and _tl_compat.os or os; local package = _tl_compat and _tl_compat.package or package; local pairs = _tl_compat and _tl_compat.pairs or pairs; local string = _tl_compat and _tl_compat.string or string; local table = _tl_compat and _tl_compat.table or table
+      | local VERSION = "0.15.3+dev"
+      | 
+      | local stdlib = [=====[
+@@ 1039 @@
+      | 
+      |       local function end_token(kind, tk)
+      |          nt = nt + 1
+   4% |          tokens[nt] = {
+      |             x = tx,
+      |             y = ty,
+      |             tk = tk,
+@@ 1051 @@
+      |       local function end_token_identifier()
+      |          local tk = input:sub(ti, i - 1)
+      |          nt = nt + 1
+   4% |          tokens[nt] = {
+      |             x = tx,
+      |             y = ty,
+      |             tk = tk,
+@@ 2266 @@
+      | 
+      |    local function new_node(ps, i, kind)
+      |       local t = ps.tokens[i]
+   9% |       return { f = ps.filename, y = t.y, x = t.x, tk = t.tk, kind = kind or (t.kind) }
+      |    end
+      | 
+      |    local function new_type(ps, i, typename)
+@@ 2435 @@
+      |    local function parse_list(ps, i, list, close, sep, parse_item)
+      |       local n = 1
+      |       while ps.tokens[i].kind ~= "$EOF$" do
+   4% |          if close[ps.tokens[i].tk] then
+      |             end_at(list, ps.tokens[i])
+      |             break
+      |          end
+@@ 2444 @@
+      |          i, item, n = parse_item(ps, i, n)
+      |          n = n or oldn
+      |          table.insert(list, item)
+  10% |          if ps.tokens[i].tk == "," then
+      |             i = i + 1
+      |             if sep == "sep" and close[ps.tokens[i].tk] then
+      |                fail(ps, i, "unexpected '" .. ps.tokens[i].tk .. "'")
+@@ 2863 @@
+      |       }
+      | 
+      |       local function new_operator(tk, arity, op)
+   3% |          return { y = tk.y, x = tk.x, arity = arity, op = op, prec = precedences[arity][op] }
+      |       end
+      | 
+      |       an_operator = function(node, arity, op)
+@@ 2930 @@
+      |          end
+      | 
+      |          while true do
+   5% |             local tkop = ps.tokens[i]
+      |             if tkop.kind == "," or tkop.kind == ")" then
+      |                break
+      |             end
+@@ 3083 @@
+      |          local istart = i
+      |          i, lhs = P(ps, i)
+      |          if lhs then
+   3% |             i, lhs = E(ps, i, lhs, 0)
+      |          end
+      |          if lhs then
+      |             return i, lhs, 0
+@@ 3876 @@
+      |             return i
+      |          end
+      |          table.insert(asgn.exps, val)
+   5% |       until ps.tokens[i].tk ~= ","
+      |       return i, asgn
+      |    end
+      | 
+@@ 4137 @@
+      |          i, item = fn(ps, i)
+      | 
+      |          if item then
+   4% |             table.insert(node, item)
+      |          elseif i > 1 then
+      | 
+      |             local lasty = ps.tokens[i - 1].y
+
+====== /Users/frityet/Documents/teal-compiler/lua_modules/share/lua/5.1/backends/gccjit/init.lua ======
+@@ 18 @@
+      | local ffi = require("ffi")
+      | local libgccjit = require("backends.gccjit.cdef")
+      | 
+   3% | ffi.cdef [[
+      |     void free(void *ptr);
+      | ]]
+      | 
