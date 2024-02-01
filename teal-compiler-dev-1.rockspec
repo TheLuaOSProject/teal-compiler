@@ -13,17 +13,19 @@ dependencies = {
 }
 build = {
    type = "make",
-   -- install = {
-   --    -- bin = {
-   --    --    ["teal-compiler"] = "build/main.lua"
-   --    --    ["print-ast"] = "build/print-ast.lua"
-   --    -- }
-   -- },
-   -- modules = {
-   --    -- ["backends.gccjit"] = "src/backends/gccjit.lua",
-   --    -- ["backends.gccjit.cdef"] = "src/backends/gccjit/cdef.lua",
-   --    -- ["backends.gccjit.init"] = "src/backends/gccjit/init.lua",
-   --    -- ["teal.tl"] = "teal/tl.lua",
-   --    -- ["tl"] = "teal/tl.lua",
-   -- }
+   build_variables = {
+      CFLAGS = "$(CFLAGS)",
+      LIBFLAG = "$(LIBFLAG)",
+      LUA_LIBDIR = "$(LUA_LIBDIR)",
+      LUA_BINDIR = "$(LUA_BINDIR)",
+      LUA_INCDIR = "$(LUA_INCDIR)",
+      LUA = "$(LUA)",
+   },
+   install_variables = {
+      INST_PREFIX = "$(PREFIX)",
+      INST_BINDIR = "$(BINDIR)",
+      INST_LIBDIR = "$(LIBDIR)",
+      INST_LUADIR = "$(LUADIR)",
+      INST_CONFDIR = "$(CONFDIR)",
+   },
 }
