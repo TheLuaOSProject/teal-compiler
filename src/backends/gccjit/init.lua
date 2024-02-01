@@ -73,9 +73,9 @@ end
 ---| "print errors to stderr" void gcc_jit_context_set_bool_print_errors_to_stderr (gcc_jit_context *ctxt, int enabled);
 ---| "use external driver" void gcc_jit_context_set_bool_use_external_driver (gcc_jit_context *ctxt, int enabled);
 
----@overload fun(self: gccjit.Context*, option: gccjit.Options.Boolean, value: boolean)
----@overload fun(self: gccjit.Context*, option: gccjit.Options.Integer, value: integer)
----@overload fun(self: gccjit.Context*, option: gccjit.Options.String, value: string)
+--overload fun(self: gccjit.Context*, option: gccjit.Options.Boolean, value: boolean)
+--overload fun(self: gccjit.Context*, option: gccjit.Options.Integer, value: integer)
+--overload fun(self: gccjit.Context*, option: gccjit.Options.String, value: string)
 ---@param option gccjit.Options.Boolean | gccjit.Options.Integer | gccjit.Options.String
 ---@param value boolean | integer | string
 function Context:set_option(option, value)

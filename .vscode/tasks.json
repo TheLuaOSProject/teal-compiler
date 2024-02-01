@@ -3,14 +3,10 @@
     "tasks": [
         {
             "label": "Build",
-            "command": "xmake",
+            "command": "./luarocks",
             "type": "process",
             "args": [
-                "-w",
-                "-v"
-            ],
-            "problemMatcher": [
-                "$gcc"
+                "make"
             ],
             "presentation": {
                 "reveal": "always"

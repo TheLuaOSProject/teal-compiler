@@ -15,26 +15,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
-local profiler = require("jit.p")
-
-profiler.start("10vzai1", "jit.p.out")
-
-local ffi = require("ffi")
+local gccjit_translator = require("ast-translator.gccjit")
 local teal = require("teal.tl")
-local gccjit = require("backends.gccjit")
-local pretty = require("pl.pretty")
-
----@param ret string
----@return fun(...: string): ffi.ctype*
-local function fn(ret)
-    return function(...)
-        return ffi.typeof(string.format("%s(*)(%s)", ret, table.concat({...}, ", ")) --[[@as ffi.ctype*]])
-    end
-end
-
-local ctx = gccjit.Context.acquire()
-ctx:set_option("dump generated code", true)
-
 local in_f = arg[1] or "test.tl"
 
 ---@type string
@@ -45,7 +27,24 @@ local contents do
 end
 
 local ast, errs, modules = teal.parse(contents, in_f)
-pretty(ast)
+if #errs > 0 then
+    for _, err in ipairs(errs) do
+        io.stderr:write(string.format("%s:%d:%d: %s\n", in_f, err.y, err.x, err.msg))
+    end
+    os.exit(1)
+end
 
-profiler.stop()
+local stmnts = gccjit_translator.compile(ast, {}) --[[ @as gccjit.Object*[] ]]
+local ctx = gccjit_translator.compiler_context
+ctx:set_option("dump generated code", true)
+ctx:set_option("optimization level", 3)
+local res = ctx:compile()
+if not res then
+    error("Failed to compile")
+end
 
+local add = res:get_code("add", "int32_t(*)(int32_t, int32_t)") --[[@as fun(x: integer, y: integer): integer]]
+if not add then
+    error("Failed to get add")
+end
+print(add(43, 321))
