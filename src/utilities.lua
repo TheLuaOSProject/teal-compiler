@@ -19,12 +19,13 @@ local export = {}
 
 ---@generic T, TRet
 ---@param x T
----@return fun(match: { default: (fun(x: T): TRet?)?, [T] : fun(): TRet }): TRet?
+---@return fun(match: { default: (fun(x: T): TRet?)?, [T] : fun(goto: fun(x: T): TRet?): TRet }): TRet?
 function export.match(x)
     return function (match)
         local m = match[x]
-        if m then return type(m) == "function" and m() or m
-        else return match.default(x) end
+        local function go_to(x) return match[x] and match[x](go_to) or error("Could not goto match "..tostring(x)) end
+
+        return m and m(go_to) or (match.default and match.default(x) or nil)
     end
 end
 

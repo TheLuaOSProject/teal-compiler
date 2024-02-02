@@ -1,4 +1,4 @@
 [submodule "teal"]
 	path = teal
-	url = https://github.com/teal-language/tl
+	url = https://github.com/Frityet/tl
 	branch = next

@@ -17,14 +17,20 @@
 
 local gccjit = require("backends.gccjit")
 local ffi    = require("ffi")
-local ctx = gccjit.Context.acquire()
 local utilities = require("utilities")
+
+local ctx = gccjit.Context.acquire()
 
 ---@param node tl.Where | tl.Node
 ---@return gccjit.Location*?
-local function get_loc(node)
+local function loc(node)
     return ctx:new_location(node.f, node.y, node.x)
 end
+
+---@generic T
+---@param x T
+---@return fun(): T
+local function ret(x) return function() return x end end
 
 ---@param type tl.Type
 ---@return gccjit.Type*
@@ -33,10 +39,10 @@ local function conv_teal_type(type)
     ---@return gccjit.Type*
     local function t(x) return ctx:get_type(x) end
     return assert(utilities.match(type.typename) {
-        ["integer"] = function() return t"int32_t" end,
-        ["boolean"] = function() return t"bool" end,
-        ["number"] = function() return t"double" end,
-        ["string"] = function() return t"const char *" end,
+        ["integer"] = ret(t"int32_t"),
+        ["boolean"] = ret(t"bool"),
+        ["number"] = ret(t"double"),
+        ["string"] = ret(t"const char *"),
         ["tuple"] = function ()
             --[[@cast type tl.TupleType]]
             if #type.tuple == 1 then
@@ -46,13 +52,13 @@ local function conv_teal_type(type)
                 local types = {}
                 for _, tl_type in ipairs(type.tuple) do
                     local ty = conv_teal_type(tl_type)
-                    local field = ctx:new_field(ty, string.format("field_%d_%d", #types, tl_type.typeid), get_loc(type))
+                    local field = ctx:new_field(ty, string.format("field_%d_%d", #types, tl_type.typeid), loc(type))
                     table.insert(types, field)
                 end
-                return ctx:new_struct_type(string.format("tuple_%d", type.typeid), types, get_loc(type))
+                return ctx:new_struct_type(string.format("tuple_%d", type.typeid), types, loc(type))
             end
         end,
-        ["nil"] = function() return t"void" end,
+        ["nil"] = ret(t"void"),
         default = function(x)
             error(string.format("Unsupported type: %s", x))
         end
@@ -61,36 +67,35 @@ end
 
 ---@type { [tl.NodeKind] : fun(node: tl.Node, variables: { [string] : gccjit.RValue* }, func: gccjit.Function*?, block: gccjit.Block*?, ...): gccjit.Object*? }
 local visitor = {}
----@param node tl.Node
----@param vars { [string] : gccjit.RValue* }
----@param func gccjit.Function*?
----@param block gccjit.Block*?
----@return gccjit.Object* | gccjit.Object*[] | nil
-local function visit(node, vars, func, block, ...) return visitor[node.kind](node, vars, func, block, ...) end
 
 function visitor.statements(node, vars, func, block)
     local stmnts = {}
     for _, stmt in ipairs(node) do
-        table.insert(stmnts, visit(stmt, vars, func, block))
+        table.insert(stmnts, visitor[stmt.kind](stmt, vars, func, block))
     end
     return stmnts
 end
 
 visitor["return"] = function (node, vars, func, block)
-    local expr = visit(node.exps, vars, func, block) --[[@as gccjit.RValue*]]
-    block:end_with_return(expr, get_loc(node))
+    local expr = visitor[node.exps.kind](node.exps, vars, func, block) --[[@as gccjit.RValue*]]
+    print("ending with ret expr "..gccjit.debug_string(expr))
+    block:end_with_return(expr, loc(node))
 end
 
-function visitor.expression_list(node, vars, func, block)
-    return visit(node[1], vars, func, block)
+function visitor.expression_list(node, vars, func, block, expected_type)
+    local exprs = {}
+    for _, expr in ipairs(node) do
+        table.insert(exprs, visitor[expr.kind](expr, vars, func, block, expected_type))
+    end
+    return exprs
 end
 
-function visitor.op(node, vars, func, block)
-    local e1 = visit(node.e1, vars, func, block) --[[@as gccjit.RValue*]]
-    local e2 = visit(node.e2, vars, func, block) --[[@as gccjit.RValue*]]
+function visitor.op(node, vars, func, block, expected_type)
+    local e1 = visitor[node.e1.kind](node.e1, vars, func, block) --[[@as gccjit.RValue*]]
+    local e2 = visitor[node.e2.kind](node.e2, vars, func, block) --[[@as gccjit.RValue*]]
     local op = assert(node.op.op)
 
-    return ctx:new_binary_op(ctx:get_type "int32_t", e1, op, e2, get_loc(node))
+    return ctx:new_binary_op(expected_type, e1, op, e2, loc(node))
 end
 
 function visitor.variable(node, vars, func, block)
@@ -98,9 +103,33 @@ function visitor.variable(node, vars, func, block)
     return assert(vars[name])
 end
 
-function visitor.global_function(node, vars)
+function visitor.variable_list(node, vars, func, block)
+    local vnames = {}
+    for _, expr in ipairs(node) do
+        table.insert(vnames, visitor[expr.kind](expr, vars, func, block))
+    end
+    return vnames
+end
+
+function visitor.identifier(node)
+    return assert(node.tk) --[[@as gccjit.RValue* this isn't an rvalue but i dont wanna change the type]]
+end
+
+function visitor.local_declaration(node, vars, func, block)
+    local vname = visitor[node.vars.kind](node.vars, vars, func, block)[1] --[[@as string]]
+    local type = conv_teal_type(node.decltuple)
+
+    vars[vname] = visitor[node.exps.kind](node.exps, vars, func, block, type) --[[@as gccjit.RValue*]]
+end
+
+---@param type gccjit.Function*.Kind
+---@param node tl.Node
+---@param vars { [string] : gccjit.RValue* }
+---@return gccjit.Function*
+local function new_function(type, node, vars)
     local ret = conv_teal_type(node.rets)
     local name = assert(node.name.tk)
+    vars = {}
     ---@type gccjit.Param*[]
     local params = {}
     for _, param in ipairs(node.args) do
@@ -111,16 +140,25 @@ function visitor.global_function(node, vars)
         vars[name] = ffi.cast("gcc_jit_rvalue *", p) --[[@as gccjit.RValue*]]
     end
 
-    local fn = ctx:new_function("exported", name, ret, params, false, get_loc(node))
+    local fn = ctx:new_function(type, name, ret, params, false, loc(node))
     for i, tl_block in ipairs(node.body) do
         local block = fn:new_block(string.format("fn_%s_block_%d", name, i))
-        visit(tl_block, vars, fn, block)
+        visitor[tl_block.kind](tl_block, vars, fn, block)
     end
     return fn
 end
 
+function visitor.global_function(node, vars)
+    return new_function("exported", node, vars) --for now, all global functions are exported
+end
+
+function visitor.local_function(node, vars)
+    return new_function("internal", node, vars)
+end
+
 return {
     compiler_context = ctx,
-    compile = visit,
     visitor = visitor,
+    ---@param node tl.Node
+    compile = function(node) return visitor[node.kind](node, {}) end
 }

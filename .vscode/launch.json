@@ -4,7 +4,7 @@
             "arg": [
 
             ],
-            "runtimeArgs": "-joff",
+            "runtimeArgs": "-joff -O0",
             "name": "launch",
             "program": "${workspaceFolder}/src/main.lua",
             "request": "launch",

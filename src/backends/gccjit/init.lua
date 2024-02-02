@@ -674,6 +674,7 @@ end
 ---@return gccjit.RValue*
 function Context:new_binary_op(result_type, lhs, op, rhs, location)
     op = op :gsub("%+", "plus")
+            :gsub("%-", "minus")
             :gsub("%*", "mult")
             :gsub("%/", "divide")
             :gsub("%%", "modulo")
@@ -820,6 +821,7 @@ end
 ---@param location gccjit.Location*?
 function Block:add_assignment_op(to, op, from, location)
     op = op :gsub("%+", "plus")
+            :gsub("%-", "minus")
             :gsub("%*", "mult")
             :gsub("%/", "divide")
             :gsub("%%", "modulo")

@@ -10,6 +10,7 @@ description = {
 dependencies = {
    "lua ~> 5.1",
    "penlight",
+   "argparse"
 }
 build = {
    type = "make",

@@ -1,3 +1,4 @@
 global function add(x: integer, y: integer): integer
-    return x + y
+    local result: integer = x + y
+    return result
 end

@@ -34,10 +34,10 @@ if #errs > 0 then
     os.exit(1)
 end
 
-local stmnts = gccjit_translator.compile(ast, {}) --[[ @as gccjit.Object*[] ]]
+gccjit_translator.compile(ast, {}) --[[ @as gccjit.Object*[] ]]
 local ctx = gccjit_translator.compiler_context
 ctx:set_option("dump generated code", true)
-ctx:set_option("optimization level", 3)
+ctx:set_option("optimization level", 0)
 local res = ctx:compile()
 if not res then
     error("Failed to compile")
