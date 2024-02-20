@@ -19,7 +19,7 @@ local export = {}
 
 ---@generic T, TRet
 ---@param x T
----@return fun(match: { default: (fun(x: T): TRet?)?, [T] : fun(goto: fun(x: T): TRet?): TRet }): TRet?
+---@return fun(match: { default: (fun(x: T): TRet?)?, [T] : fun(goto: fun(x: T): (TRet?)): TRet }): (TRet?)
 function export.match(x)
     return function (match)
         local m = match[x]

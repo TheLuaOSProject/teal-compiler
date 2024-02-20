@@ -1,4 +1,4 @@
 {
     "teal.compilerPath": "teal/tl",
-    "clangd.fallbackFlags": [ "-I/usr/local/include" ]
+    "clangd.fallbackFlags": [ "-I/usr/local/include", "-std=c++23", "-stdlib=libc++" ],
 }

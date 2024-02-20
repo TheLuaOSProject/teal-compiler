@@ -15,7 +15,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
-local gccjit_translator = require("ast-translator.gccjit")
+local gccjit_translator = require("codegen.gccjit")
+local ffi = require("ffi")
+
 local teal = require("teal.tl")
 local in_f = arg[1] or "test.tl"
 
@@ -34,7 +36,7 @@ if #errs > 0 then
     os.exit(1)
 end
 
-gccjit_translator.compile(ast, {}) --[[ @as gccjit.Object*[] ]]
+gccjit_translator.compile(ast) --[[ @as gccjit.Object*[] ]]
 local ctx = gccjit_translator.compiler_context
 ctx:set_option("dump generated code", true)
 ctx:set_option("optimization level", 0)

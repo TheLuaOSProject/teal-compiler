@@ -33,12 +33,14 @@ end
 local export = {}
 
 ---@param obj gccjit.Object*
----@return string
+---@return string?
 function export.debug_string(obj)
-   return ffi.string(libgccjit.gcc_jit_object_get_debug_string(ffi.cast("gcc_jit_object *", obj)))
+    local to_obj = obj.as_object
+   return to_obj and ffi.string(libgccjit.gcc_jit_object_get_debug_string(to_obj(obj))) or nil
 end
 
 ---@class gccjit.Object* : ffi.cdata*
+---@field as_object nil | fun(self: self): gccjit.Object*
 
 --#region Context
 ---@class gccjit.Context* : gccjit.Object*
@@ -233,6 +235,10 @@ function Context:get_last_error()
     return ffi.string(libgccjit.gcc_jit_context_get_last_error(self))
 end
 
+function Context:as_object()
+    return self
+end
+
 --#endregion
 
 ---@class gccjit.Field* : gccjit.Object*
@@ -262,6 +268,10 @@ end
 ---@return gccjit.Field*
 function Context:new_bitfield(type, name, width, location)
     return libgccjit.gcc_jit_context_new_bitfield(self, location, type, name, width) --[[@as gccjit.Field*]]
+end
+
+function Field:as_object()
+    return libgccjit.gcc_jit_field_as_object(self)
 end
 
 ---@class gccjit.Struct* : gccjit.Type*
@@ -365,6 +375,10 @@ function Context:new_array_access(ptr, index, loc)
     return libgccjit.gcc_jit_context_new_array_access(self, loc, ptr, index) --[[@as gccjit.LValue*]]
 end
 
+function Struct:as_object()
+    return libgccjit.gcc_jit_struct_as_object(self)
+end
+
 ---@class gccjit.Type* : ffi.cdata*
 local Type = {}
 Type.__index = Type
@@ -465,6 +479,10 @@ function Type:is_struct()
     return libgccjit.gcc_jit_type_is_struct(self) ~= 0
 end
 
+function Type:as_object()
+    return libgccjit.gcc_jit_type_as_object(self)
+end
+
 ---@class gccjit.VectorType* : gccjit.Type*
 local VectorType = {}
 VectorType.__index = VectorType
@@ -533,6 +551,10 @@ function Context:new_location(filename, line, column)
     return libgccjit.gcc_jit_context_new_location(self, filename, line, column) --[[@as gccjit.Location*]]
 end
 
+function Location:as_object()
+    return libgccjit.gcc_jit_location_as_object(self)
+end
+
 ---@class gccjit.RValue* : gccjit.Object*
 local RValue = {}
 RValue.__index = RValue
@@ -541,20 +563,25 @@ RValue.__index = RValue
 ---@param location gccjit.Location*?
 ---@return gccjit.RValue*
 function RValue:access_field(field, location)
-    return libgccjit.gcc_jit_rvalue_access_field(self, location, field) --[[@as gccjit.RValue*]]
+    return libgccjit.gcc_jit_rvalue_access_field(self, location, field)
+end
+
+---@return gccjit.Type*
+function RValue:get_type()
+    return libgccjit.gcc_jit_rvalue_get_type(self)
 end
 
 ---@param field gccjit.Field*
 ---@param location gccjit.Location*?
 ---@return gccjit.LValue*
 function RValue:dereference_field(field, location)
-    return libgccjit.gcc_jit_rvalue_dereference_field(self, location, field) --[[@as gccjit.LValue*]]
+    return libgccjit.gcc_jit_rvalue_dereference_field(self, location, field)
 end
 
 ---@param location gccjit.Location*?
 ---@return gccjit.LValue*
 function RValue:dereference(location)
-    return libgccjit.gcc_jit_rvalue_dereference(self, location) --[[@as gccjit.LValue*]]
+    return libgccjit.gcc_jit_rvalue_dereference(self, location)
 end
 
 ---@param cond boolean
@@ -565,7 +592,7 @@ end
 ---@param str string
 ---@return gccjit.RValue*
 function Context:new_string_literal(str)
-    return libgccjit.gcc_jit_context_new_string_literal(self, str) --[[@as gccjit.RValue*]]
+    return libgccjit.gcc_jit_context_new_string_literal(self, str)
 end
 
 ---@param kind gccjit.GlobalKind
@@ -574,10 +601,12 @@ end
 ---@param location gccjit.Location*?
 ---@return gccjit.LValue*
 function Context:new_global(kind, type, name, location)
-    return libgccjit.gcc_jit_context_new_global(self, location, libgccjit["GCC_JIT_GLOBAL_"..kind:gsub(" ", "_"):upper()], type, name) --[[@as gccjit.LValue*]]
+    return libgccjit.gcc_jit_context_new_global(self, location, libgccjit["GCC_JIT_GLOBAL_"..kind:gsub(" ", "_"):upper()], type, name)
 end
 
-
+function RValue:as_object()
+    return libgccjit.gcc_jit_rvalue_as_object(self)
+end
 
 ---@class gccjit.Param* : gccjit.LValue*
 local Param = {}
@@ -727,6 +756,10 @@ function Context:new_param(type, name, location)
     return libgccjit.gcc_jit_context_new_param(self, location, type, name) --[[@as gccjit.Param*]]
 end
 
+function Param:as_object()
+    return libgccjit.gcc_jit_param_as_object(self)
+end
+
 ---@class gccjit.Function* : gccjit.Object*
 local Function = {}
 Function.__index = Function
@@ -785,6 +818,10 @@ end
 ---@return integer
 function Function:get_param_count()
     return libgccjit.gcc_jit_function_get_param_count(self)
+end
+
+function Function:as_object()
+    return libgccjit.gcc_jit_function_as_object(self)
 end
 
 ---@class gccjit.Block* : gccjit.Object*
@@ -854,18 +891,18 @@ end
 ---@param target gccjit.Block*
 ---@param location gccjit.Location*?
 function Block:end_with_jump(target, location)
-    libgccjit.gcc_jit_block_end_with_jump(self, location, target)
+    return libgccjit.gcc_jit_block_end_with_jump(self, location, target)
 end
 
 ---@param value gccjit.RValue*
 ---@param location gccjit.Location*?
 function Block:end_with_return(value, location)
-    libgccjit.gcc_jit_block_end_with_return(self, location, value)
+    return libgccjit.gcc_jit_block_end_with_return(self, location, value)
 end
 
 ---@param location gccjit.Location*?
 function Block:end_with_void_return(location)
-    libgccjit.gcc_jit_block_end_with_void_return(self, location)
+    return libgccjit.gcc_jit_block_end_with_void_return(self, location)
 end
 
 ---@param expr gccjit.RValue*
@@ -877,7 +914,11 @@ function Block:end_with_switch(expr, on_default, cases, loc)
     for i = 1, num_cases do
         ccases[i-1] = cases[i]
     end
-    libgccjit.gcc_jit_block_end_with_switch(self, loc, expr, on_default, num_cases, ccases)
+    return libgccjit.gcc_jit_block_end_with_switch(self, loc, expr, on_default, num_cases, ccases)
+end
+
+function Block:as_object()
+    return libgccjit.gcc_jit_block_as_object(self)
 end
 
 ---@class gccjit.ExtendedAssembly* : gccjit.Object*
@@ -907,37 +948,41 @@ end
 
 ---@param x boolean
 function ExtendedAssembly:set_volatile(x)
-    libgccjit.gcc_jit_extended_asm_set_volatile(self, x)
+    return libgccjit.gcc_jit_extended_asm_set_volatile(self, x)
 end
 
 ---@param x boolean
 function ExtendedAssembly:set_inline(x)
-    libgccjit.gcc_jit_extended_asm_set_inline(self, x)
+    return libgccjit.gcc_jit_extended_asm_set_inline(self, x)
 end
 
 ---@param asmname string
 ---@param constraint string
 ---@param dest gccjit.LValue*
 function ExtendedAssembly:add_output_operand(asmname, constraint, dest)
-    libgccjit.gcc_jit_extended_asm_add_output_operand(self, asmname, constraint, dest)
+    return libgccjit.gcc_jit_extended_asm_add_output_operand(self, asmname, constraint, dest)
 end
 
 ---@param asmname string
 ---@param constraint string
 ---@param src gccjit.RValue*
 function ExtendedAssembly:add_input_operand(asmname, constraint, src)
-    libgccjit.gcc_jit_extended_asm_add_input_operand(self, asmname, constraint, src)
+    return libgccjit.gcc_jit_extended_asm_add_input_operand(self, asmname, constraint, src)
 end
 
 ---@param target string
 function ExtendedAssembly:add_clobber(target)
-    libgccjit.gcc_jit_extended_asm_add_clobber(self, target)
+    return libgccjit.gcc_jit_extended_asm_add_clobber(self, target)
 end
 
 ---@param asmname string
 ---@param loc gccjit.Location*?
 function ExtendedAssembly:add_top_level_asm(asmname, loc)
-    libgccjit.gcc_jit_extended_asm_add_top_level_asm(self, loc, asmname)
+    return libgccjit.gcc_jit_extended_asm_add_top_level_asm(self, loc, asmname)
+end
+
+function ExtendedAssembly:as_object()
+    return libgccjit.gcc_jit_extended_asm_as_object(self)
 end
 
 ---@class gccjit.Case* : gccjit.Object*
@@ -949,6 +994,10 @@ Case.__index = Case
 ---@param dest gccjit.Block*
 function Context:new_case(min, max, dest)
     return libgccjit.gcc_jit_context_new_case(self, min, max, dest) --[[@as gccjit.Case*]]
+end
+
+function Case:as_object()
+    return libgccjit.gcc_jit_case_as_object(self)
 end
 
 ---@class gccjit.LValue* : gccjit.RValue*
@@ -967,12 +1016,12 @@ end
 ---@param value ffi.cdata* void *
 ---@param size integer
 function LValue:set_intaliser(value, size)
-    libgccjit.gcc_jit_lvalue_set_intializer(self, value, size)
+    return libgccjit.gcc_jit_lvalue_set_intializer(self, value, size)
 end
 
 ---@param bytes integer
 function LValue:set_alignment(bytes)
-    libgccjit.gcc_jit_lvalue_set_alignment(self, bytes)
+    return libgccjit.gcc_jit_lvalue_set_alignment(self, bytes)
 end
 
 ---@return integer
@@ -995,22 +1044,26 @@ end
 
 ---@param tls_model gccjit.TLSModel
 function LValue:set_tls_model(tls_model)
-    libgccjit.gcc_jit_lvalue_set_tls_model(self, libgccjit["GCC_JIT_TLS_MODEL_"..tls_model:gsub(" ", "_"):upper()])
+    return libgccjit.gcc_jit_lvalue_set_tls_model(self, libgccjit["GCC_JIT_TLS_MODEL_"..tls_model:gsub(" ", "_"):upper()])
 end
 
 ---@param section string
 function LValue:set_link_section(section)
-    libgccjit.gcc_jit_lvalue_set_link_section(self, section)
+    return libgccjit.gcc_jit_lvalue_set_link_section(self, section)
 end
 
 ---@param name string
 function LValue:set_register_name(name)
-    libgccjit.gcc_jit_lvalue_set_register_name(self, name)
+    return libgccjit.gcc_jit_lvalue_set_register_name(self, name)
 end
 
 ---@return gccjit.RValue*
 function LValue:as_rvalue()
     return libgccjit.gcc_jit_lvalue_as_rvalue(self) --[[@as gccjit.RValue*]]
+end
+
+function LValue:as_object()
+    return libgccjit.gcc_jit_lvalue_as_object(self)
 end
 
 ---@class gccjit.Result* : gccjit.Object*

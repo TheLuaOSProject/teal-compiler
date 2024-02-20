@@ -13,10 +13,10 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
+-- along with teal-compiler. If not, see <http://www.gnu.org/licenses/>.
 
 local gccjit = require("backends.gccjit")
-local ffi    = require("ffi")
+local ffi = require("ffi")
 local utilities = require("utilities")
 
 local ctx = gccjit.Context.acquire()
@@ -41,8 +41,8 @@ local function conv_teal_type(type)
     return assert(utilities.match(type.typename) {
         ["integer"] = ret(t"int32_t"),
         ["boolean"] = ret(t"bool"),
-        ["number"] = ret(t"double"),
-        ["string"] = ret(t"const char *"),
+        ["number"]  = ret(t"double"),
+        ["string"]  = ret(t"const char *"),
         ["tuple"] = function ()
             --[[@cast type tl.TupleType]]
             if #type.tuple == 1 then
@@ -65,7 +65,31 @@ local function conv_teal_type(type)
     })
 end
 
----@type { [tl.NodeKind] : fun(node: tl.Node, variables: { [string] : gccjit.RValue* }, func: gccjit.Function*?, block: gccjit.Block*?, ...): gccjit.Object*? }
+---@class TypeIs
+---@field rvalue fun(x: ffi.cdata*): gccjit.RValue*
+---@field lvalue fun(x: ffi.cdata*): gccjit.LValue*
+---@field type fun(x: ffi.cdata*): gccjit.Type*
+
+---@type TypeIs
+local type_is = setmetatable({}, {
+    __index = function (self, tname)
+        local t_expected = ffi.typeof("gcc_jit_"..tname.." *")
+        self[type] = function (x)
+            local t = ffi.typeof(x)
+            assert(t == t_expected, string.format("Expected %s, got %s", t_expected, t))
+            return x --[[@as any]]
+        end
+        return self[type]
+    end
+})
+
+--cache the results of type_is, this will fill the table
+_=type_is.rvalue
+_=type_is.lvalue
+_=type_is.type
+
+
+---@type { [tl.NodeKind] : fun(node: tl.Node, variables: { [string] : gccjit.RValue* }, func: gccjit.Function*?, block: gccjit.Block*?, ...): any? }
 local visitor = {}
 
 function visitor.statements(node, vars, func, block)
@@ -77,9 +101,8 @@ function visitor.statements(node, vars, func, block)
 end
 
 visitor["return"] = function (node, vars, func, block)
-    local expr = visitor[node.exps.kind](node.exps, vars, func, block) --[[@as gccjit.RValue*]]
-    print("ending with ret expr "..gccjit.debug_string(expr))
-    block:end_with_return(expr, loc(node))
+    local expr = type_is["rvalue"](visitor[node.exps.kind](node.exps, vars, func, block)[1])
+    return block:end_with_return(expr, loc(node))
 end
 
 function visitor.expression_list(node, vars, func, block, expected_type)
@@ -90,12 +113,12 @@ function visitor.expression_list(node, vars, func, block, expected_type)
     return exprs
 end
 
-function visitor.op(node, vars, func, block, expected_type)
-    local e1 = visitor[node.e1.kind](node.e1, vars, func, block) --[[@as gccjit.RValue*]]
-    local e2 = visitor[node.e2.kind](node.e2, vars, func, block) --[[@as gccjit.RValue*]]
+function visitor.op(node, vars, func, block)
+    local e1 = type_is["rvalue"](visitor[node.e1.kind](node.e1, vars, func, block))
+    local e2 = type_is["rvalue"](visitor[node.e2.kind](node.e2, vars, func, block))
     local op = assert(node.op.op)
 
-    return ctx:new_binary_op(expected_type, e1, op, e2, loc(node))
+    return ctx:new_binary_op(e1:get_type(), e1, op, e2, loc(node))
 end
 
 function visitor.variable(node, vars, func, block)
@@ -112,14 +135,15 @@ function visitor.variable_list(node, vars, func, block)
 end
 
 function visitor.identifier(node)
-    return assert(node.tk) --[[@as gccjit.RValue* this isn't an rvalue but i dont wanna change the type]]
+    return assert(node.tk)
 end
 
 function visitor.local_declaration(node, vars, func, block)
+    --Locals could have multple (i.e local a, b, c), but for now only support 1
     local vname = visitor[node.vars.kind](node.vars, vars, func, block)[1] --[[@as string]]
     local type = conv_teal_type(node.decltuple)
 
-    vars[vname] = visitor[node.exps.kind](node.exps, vars, func, block, type) --[[@as gccjit.RValue*]]
+    vars[vname] = type_is["rvalue"](visitor[node.exps.kind](node.exps, vars, func, block)[1])
 end
 
 ---@param type gccjit.Function*.Kind
@@ -141,10 +165,12 @@ local function new_function(type, node, vars)
     end
 
     local fn = ctx:new_function(type, name, ret, params, false, loc(node))
-    for i, tl_block in ipairs(node.body) do
-        local block = fn:new_block(string.format("fn_%s_block_%d", name, i))
-        visitor[tl_block.kind](tl_block, vars, fn, block)
-    end
+    -- for i, tl_block in ipairs(node.body) do
+    --     print("block", i, tl_block.kind, tl_block)
+
+    -- end
+    local block = fn:new_block(string.format("fn_%s_block", name))
+    visitor[node.body.kind](node.body, vars, fn, block)
     return fn
 end
 
