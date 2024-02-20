@@ -10,23 +10,20 @@ description = {
 dependencies = {
    "lua ~> 5.1",
    "penlight",
-   "argparse"
+   "argparse",
+   "tl"
 }
 build = {
-   type = "make",
-   build_variables = {
-      CFLAGS = "$(CFLAGS)",
-      LIBFLAG = "$(LIBFLAG)",
-      LUA_LIBDIR = "$(LUA_LIBDIR)",
-      LUA_BINDIR = "$(LUA_BINDIR)",
-      LUA_INCDIR = "$(LUA_INCDIR)",
-      LUA = "$(LUA)",
+   type = "builtin",
+   install = {
+      bin = {
+         ["teal-compiler"] = "src/main.lua"
+      }
    },
-   install_variables = {
-      INST_PREFIX = "$(PREFIX)",
-      INST_BINDIR = "$(BINDIR)",
-      INST_LIBDIR = "$(LIBDIR)",
-      INST_LUADIR = "$(LUADIR)",
-      INST_CONFDIR = "$(CONFDIR)",
-   },
+   modules = {
+      ["utilities"] = "src/utilities.lua",
+      ["codegen.gccjit"] = "src/codegen/gccjit.lua",
+      ["backends.gccjit"] = "src/backends/gccjit/init.lua",
+      ["backends.gccjit.cdef"] = "src/backends/gccjit/cdef.lua",
+   }
 }

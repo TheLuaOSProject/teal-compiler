@@ -11,3 +11,4 @@ compile_commands.json
 /.luarocks
 
 *.S
+ast.lua
