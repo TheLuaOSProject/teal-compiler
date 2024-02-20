@@ -9,3 +9,5 @@ compile_commands.json
 /lua
 /lua_modules
 /.luarocks
+
+*.S

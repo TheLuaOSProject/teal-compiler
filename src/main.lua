@@ -45,8 +45,15 @@ if not res then
     error("Failed to compile")
 end
 
-local add = res:get_code("add", "int32_t(*)(int32_t, int32_t)") --[[@as fun(x: integer, y: integer): integer]]
+local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as fun(x: integer, y: integer): integer]]
 if not add then
     error("Failed to get add")
 end
 print(add(43, 321))
+
+local my_func = res:get_code("my_func", "int64_t(*)(int64_t)") --[[@as fun(x: integer): integer]]
+if not my_func then
+    error("Failed to get my_func")
+end
+
+print(my_func(42))

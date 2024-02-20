@@ -39,7 +39,7 @@ local function conv_teal_type(type)
     ---@return gccjit.Type*
     local function t(x) return ctx:get_type(x) end
     return assert(utilities.match(type.typename) {
-        ["integer"] = ret(t"int32_t"),
+        ["integer"] = ret(t"int64_t"),
         ["boolean"] = ret(t"bool"),
         ["number"]  = ret(t"double"),
         ["string"]  = ret(t"const char *"),
@@ -95,7 +95,7 @@ local visitor = {}
 function visitor.statements(node, vars, func, block)
     local stmnts = {}
     for _, stmt in ipairs(node) do
-        table.insert(stmnts, visitor[stmt.kind](stmt, vars, func, block))
+        stmnts[#stmnts+1] = visitor[stmt.kind](stmt, vars, func, block) --This may return `nil`, so we can't use `table.insert`
     end
     return stmnts
 end
@@ -111,6 +111,11 @@ function visitor.expression_list(node, vars, func, block, expected_type)
         table.insert(exprs, visitor[expr.kind](expr, vars, func, block, expected_type))
     end
     return exprs
+end
+
+
+function visitor.integer(node)
+    return ctx:new_rvalue(ctx:get_type "int64_t", "long", assert(tonumber(node.tk)))
 end
 
 function visitor.op(node, vars, func, block)
