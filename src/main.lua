@@ -38,20 +38,17 @@ end
 
 gccjit_translator.compile(ast) --[[ @as gccjit.Object*[] ]]
 local ctx = gccjit_translator.compiler_context
-ctx:set_option("dump generated code", true)
+ctx:set_option("dump initial gimple", true)
 ctx:set_option("optimization level", 0)
-local res = ctx:compile()
-if not res then
-    error("Failed to compile")
-end
+local res = assert(ctx:compile())
 
-local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as fun(x: integer, y: integer): integer]]
+local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as (fun(x: integer, y: integer): integer)?]]
 if not add then
     error("Failed to get add")
 end
 print(add(43, 321))
 
-local my_func = res:get_code("my_func", "int64_t(*)(int64_t)") --[[@as fun(x: integer): integer]]
+local my_func = res:get_code("my_func", "int64_t(*)(int64_t)") --[[@as (fun(x: integer): integer)?]]
 if not my_func then
     error("Failed to get my_func")
 end

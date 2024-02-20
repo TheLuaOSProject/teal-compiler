@@ -22,6 +22,7 @@ build = {
    },
    modules = {
       ["utilities"] = "src/utilities.lua",
+      ["abi"] = "src/abi.lua",
       ["codegen.gccjit"] = "src/codegen/gccjit.lua",
       ["backends.gccjit"] = "src/backends/gccjit/init.lua",
       ["backends.gccjit.cdef"] = "src/backends/gccjit/cdef.lua",

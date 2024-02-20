@@ -11,4 +11,5 @@ compile_commands.json
 /.luarocks
 
 *.S
+*.gimple
 ast.lua

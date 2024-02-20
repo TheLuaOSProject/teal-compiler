@@ -18,6 +18,7 @@
 local gccjit = require("backends.gccjit")
 local ffi = require("ffi")
 local utilities = require("utilities")
+local abi = require("abi")
 
 local ctx = gccjit.Context.acquire()
 
@@ -159,22 +160,25 @@ local function new_function(type, node, vars)
     local ret = conv_teal_type(node.rets)
     local name = assert(node.name.tk)
     vars = {}
-    ---@type gccjit.Param*[]
-    local params = {}
+    ---@type gccjit.Param*[], { name: string, type: tl.TypeName }[]
+    local params, pfmts = {}, {}
     for _, param in ipairs(node.args) do
         local arg_t = conv_teal_type(param.argtype)
         local name = assert(param.tk)
         local p = ctx:new_param(arg_t, name)
         table.insert(params, p)
+        table.insert(pfmts, { name = name, type = param.argtype.typename })
         vars[name] = ffi.cast("gcc_jit_rvalue *", p) --[[@as gccjit.RValue*]]
     end
 
-    local fn = ctx:new_function(type, name, ret, params, false, loc(node))
+    -- local symname = abi.function_name(name, pfmts)
+    local symname = name --When ABI is finalised use the above line
+    local fn = ctx:new_function(type, symname, ret, params, false, loc(node))
     -- for i, tl_block in ipairs(node.body) do
     --     print("block", i, tl_block.kind, tl_block)
 
     -- end
-    local block = fn:new_block(string.format("fn_%s_block", name))
+    local block = fn:new_block(string.format("fn_%s_block", symname))
     visitor[node.body.kind](node.body, vars, fn, block)
     return fn
 end
