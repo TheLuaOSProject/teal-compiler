@@ -25,10 +25,10 @@
         // "/Users/frityet/.vscode/extensions/sumneko.lua-3.7.4-darwin-x64/server/meta/47e10203",
     ],
     "runtime.path": [
-        "?.lua",
-        "?/init.lua",
         "src/?.lua",
         "src/?/init.lua",
+        "?.lua",
+        "?/init.lua"
     ],
     "workspace.useGitIgnore": false,
     "runtime.pathStrict": true,

@@ -608,6 +608,11 @@ function RValue:as_object()
     return libgccjit.gcc_jit_rvalue_as_object(self)
 end
 
+---Utility func
+function RValue:as_rvalue()
+    return self
+end
+
 ---@class gccjit.Param* : gccjit.LValue*
 local Param = {}
 Param.__index = Param
@@ -1012,12 +1017,6 @@ function Function:new_local(type, name, location)
     return libgccjit.gcc_jit_function_new_local(self, location, type, name) --[[@as gccjit.LValue*]]
 end
 
-
----@param value ffi.cdata* void *
----@param size integer
-function LValue:set_intaliser(value, size)
-    return libgccjit.gcc_jit_lvalue_set_intializer(self, value, size)
-end
 
 ---@param bytes integer
 function LValue:set_alignment(bytes)

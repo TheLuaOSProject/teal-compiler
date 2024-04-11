@@ -36,12 +36,12 @@ if #errs > 0 then
     os.exit(1)
 end
 
-gccjit_translator.compile(ast) --[[ @as gccjit.Object*[] ]]
+gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
-ctx:set_option("dump initial gimple", true)
+ctx:set_option("dump generated code", false)
 ctx:set_option("optimization level", 0)
 local res = assert(ctx:compile())
-
+print("Compiled! Testing...")
 local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as (fun(x: integer, y: integer): integer)?]]
 if not add then
     error("Failed to get add")
