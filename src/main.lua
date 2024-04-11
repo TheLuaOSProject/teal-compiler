@@ -43,6 +43,7 @@ gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
 ctx:set_option("dump generated code", true)
 ctx:set_option("optimization level", 3)
+ctx:dump_to_file("out.S", true)
 local res = assert(ctx:compile())
 
 local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as (fun(x: integer, y: integer): integer)?]]
