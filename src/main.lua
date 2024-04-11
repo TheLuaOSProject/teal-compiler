@@ -16,11 +16,14 @@
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
 local gccjit_translator = require("codegen.gccjit")
-local ffi = require("ffi")
-
 local teal = require("teal.tl")
-local in_f = arg[1] or "test.tl"
 
+if not arg[1] then
+    io.stderr:write("Usage: "..arg[0].." <input file>\n")
+    os.exit(1)
+end
+
+local in_f = arg[1]
 ---@type string
 local contents do
     local f = assert(io.open(in_f, "r"))
@@ -38,10 +41,10 @@ end
 
 gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
-ctx:set_option("dump generated code", false)
-ctx:set_option("optimization level", 0)
+ctx:set_option("dump generated code", true)
+ctx:set_option("optimization level", 3)
 local res = assert(ctx:compile())
-print("Compiled! Testing...")
+
 local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as (fun(x: integer, y: integer): integer)?]]
 if not add then
     error("Failed to get add")

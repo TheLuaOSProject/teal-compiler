@@ -6,6 +6,6 @@ end
 
 global function my_func(x: integer): integer
     local var = x * 12
-    var = var + 1
+    var = add(var, 1)
     return var + x
 end

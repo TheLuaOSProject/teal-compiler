@@ -103,7 +103,9 @@ local visitor = {}
 ---@param ... any
 ---@return any?
 local function visit(node, vars, func, block, ...)
-    return visitor[node.kind](node, vars, func, block, ...)
+    local vtor = visitor[node.kind]
+    if not vtor then error(string.format("Unsupported node kind: %s", node.kind)) end
+    return vtor(node, vars, func, block, ...)
 end
 
 function visitor.statements(node, vars, func, block)
