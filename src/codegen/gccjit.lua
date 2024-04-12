@@ -18,6 +18,7 @@
 local gccjit = require("backends.gccjit")
 local ffi = require("ffi")
 local utilities = require("utilities")
+local pretty = require("pl.pretty")
 local abi = require("abi")
 
 local ctx = gccjit.Context.acquire()
@@ -36,35 +37,63 @@ end
 ---@return fun(): T
 local function ret(x) return function() return x end end
 
+---@class FunctionType
+---@field args gccjit.Type*[]
+---@field rets gccjit.Type*[]
+
 ---@param type tl.Type
----@return gccjit.Type*
+---@return gccjit.Type*[] | FunctionType
 local function conv_teal_type(type)
-    return assert(utilities.match(type.typename) {
-        ["integer"] = ret(int_t),
-        ["boolean"] = ret(bool_t),
-        ["number"]  = ret(number_t),
-        ["string"]  = ret(string_t),
-        ["nil"]     = ret(nil_t),
+    return assert(utilities.switch(type.typename) {
+        ["integer"] = ret { int_t },
+        ["boolean"] = ret { bool_t },
+        ["number"]  = ret { number_t },
+        ["string"]  = ret { string_t },
+        ["nil"]     = ret { nil_t },
         ["tuple"] = function ()
             --[[@cast type tl.TupleType]]
-            if #type.tuple == 1 then
-                return conv_teal_type(type.tuple[1])
-            else
-                ---@type gccjit.Field*[]
-                local types = {}
-                for i, tl_type in ipairs(type.tuple) do
-                    local ty = conv_teal_type(tl_type)
-                    local field = ctx:new_field(ty, string.format("field_%d_%d", i, tl_type.typeid), loc(type))
-                    table.insert(types, field)
-                end
-                return ctx:new_struct_type(string.format("tuple_%d", type.typeid), types, loc(type))
+            ---@type gccjit.Type*[]
+            local types = {}
+
+            for _, tl_type in ipairs(type.tuple) do
+                table.insert(types, conv_teal_type(tl_type)[1])
             end
+
+            return types
+        end,
+        ["nominal"] = function ()
+            --[[@cast type tl.NominalType]]
+            local names = assert(type.names)
+            if names[1] == "c" then
+                return utilities.switch(names[2]) {
+                    ["string"] = ret { string_t },
+                    default = function(x)
+                        error(string.format("Unsupported C type: %s", x))
+                    end
+                }
+            else
+                error(string.format("Unsupported nominal type: %s", table.concat(names, '.')))
+            end
+        end,
+        ["function"] = function ()
+            --[[@cast type tl.FunctionType]]
+            local ret = { args = conv_teal_type(type.args), rets = conv_teal_type(type.rets) }
+            return ret
         end,
         default = function(x)
             error(string.format("Unsupported type: %s", x))
         end
     })
 end
+
+-- ---@param t tl.TupleType
+-- ---@return { return_type: gccjit.Type*, params: gccjit.Type*[] }
+-- local function conv_func_type(t)
+--     local node = t.tuple[1] --[[@as tl.FunctionType]]
+--     local args = conv_teal_type(node.args)
+--     local ret = conv_teal_type(node.rets)[1]
+--     return { return_type = ret, params = args }
+-- end
 
 ---@class TypeIs
 ---@field rvalue fun(x: ffi.cdata*): gccjit.RValue*
@@ -95,7 +124,7 @@ _=type_is.lvalue
 _=type_is.type
 
 
----@type { [tl.NodeKind] : fun(node: tl.Node, variables: { [string] : gccjit.LValue* }, func: gccjit.Function*?, block: gccjit.Block*?, funcs: { [string] : gccjit.Function* }, ...): any? }
+---@type { [tl.NodeKind] : fun(node: tl.Node, variables: { [string] : gccjit.LValue* }, func: gccjit.Function*?, block: gccjit.Block*?, funcs: { [string] : gccjit.Function* }, ...): ... }
 local visitor = {}
 
 ---@param node tl.Node
@@ -104,7 +133,7 @@ local visitor = {}
 ---@param block gccjit.Block*?
 ---@param funcs { [string] : gccjit.Function* }
 ---@param ... any
----@return any?
+---@return ...
 local function visit(node, vars, func, block, funcs, ...)
     local vtor = visitor[node.kind]
     if not vtor then error(string.format("Unsupported node kind: %s", node.kind)) end
@@ -120,9 +149,12 @@ function visitor.statements(node, ...)
 end
 
 visitor["return"] = function (node, vars, func, block, ...)
-    local expr = type_is["rvalue"](visit(node.exps, vars, func, block, ...)[1])
-
-    return block:end_with_return(expr, loc(node))
+    if func:get_return_type() == nil_t then
+        block:end_with_void_return(loc(node))
+    else
+        local expr = type_is["rvalue"](visit(node.exps, vars, func, block, ...)[1])
+        block:end_with_return(expr, loc(node))
+    end
 end
 
 function visitor.assignment(node, vars, func, block, ...)
@@ -143,6 +175,15 @@ end
 
 function visitor.integer(node)
     return ctx:new_rvalue(int_t, "long", assert(tonumber(node.tk)))
+end
+
+function visitor.number(node)
+    return ctx:new_rvalue(number_t, "double", assert(tonumber(node.tk)))
+end
+
+---This should make a proper string object eventually
+function visitor.string(node)
+    return ctx:new_string_literal(assert(node.conststr))
 end
 
 ---@param node tl.Node
@@ -184,21 +225,45 @@ end
 function visitor.variable_list(node, vars, func, block, funcs, ...)
     local vnames = {}
     for _, expr in ipairs(node) do
-        table.insert(vnames, visit(expr, vars, func, block, funcs, ...))
+        local name, attr = visit(expr, vars, func, block, funcs, ...)
+        table.insert(vnames, { name = name, attribute = attr })
     end
     return vnames
 end
 
 function visitor.identifier(node)
-    return assert(node.tk)
+    return assert(node.tk), node.attribute
 end
 
-function visitor.local_declaration(node, vars, func, block, ...)
+---@param fn_node tl.TupleType
+---@param fname string
+---@param funcs { [string] : gccjit.Function* }
+---@return gccjit.Function*
+local function extern_decl(fn_node, fname, funcs)
+    ---@type FunctionType
+    local ty = conv_teal_type(fn_node.tuple[1])
+
+    ---@type gccjit.Param*[]
+    local params = {}
+    for i, arg in ipairs(ty.args) do
+        table.insert(params, ctx:new_param(arg, string.format("arg%d", i)))
+    end
+
+    local f = ctx:new_function("imported", fname, ty.rets[1], params, false, loc(fn_node))
+    funcs[fname] = f
+    return f
+end
+
+function visitor.local_declaration(node, vars, func, block, funcs, ...)
     --Locals could have multple (i.e local a, b, c), but for now only support 1
-    local vname = visit(node.vars, vars, func, block, ...)[1] --[[@as string]]
+    local vname = visit(node.vars, vars, func, block, ...)[1] --[=[@as { name: string, attribute: string }]=]
+
+    if vname.attribute == "extern" then
+        return extern_decl(node.decltuple, vname.name, funcs)
+    end
 
     local val = type_is["rvalue"](visit(node.exps, vars, func, block, ...)[1])
-    local lcl = func:new_local(val:get_type(), vname, loc(node))
+    local lcl = func:new_local(val:get_type(), vname.name, loc(node))
     block:add_assignment(lcl, val, loc(node))
 
     vars[vname] = lcl
@@ -209,14 +274,16 @@ end
 ---@param funcs { [string] : gccjit.Function* }
 ---@return gccjit.Function*
 local function new_function(type, node, funcs)
-    local ret = conv_teal_type(node.rets)
+    ---@type gccjit.Type*
+    local ret = conv_teal_type(node.rets)[1]
     local name = assert(node.name.tk)
     ---@type { [string] : gccjit.LValue* }
     local vars = {}
     ---@type gccjit.Param*[]
     local params = {}
     for _, param in ipairs(node.args) do
-        local arg_t = conv_teal_type(param.argtype)
+        ---@type gccjit.Type*
+        local arg_t = conv_teal_type(param.argtype)[1]
         local name = assert(param.tk)
         local p = ctx:new_param(arg_t, name)
         table.insert(params, p)

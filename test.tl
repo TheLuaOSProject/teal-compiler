@@ -1,11 +1,7 @@
-global function add(x: integer, y: integer): integer
-    local result: integer = x + y
+local puts<extern>: function(i: string): nil
 
-    return result
-end
+global function main(): integer
+    puts "Hello, World!"
 
-global function my_func(x: integer): integer
-    local var = x * 12
-    var = add(var, 1)
-    return var + x
+    return 0
 end

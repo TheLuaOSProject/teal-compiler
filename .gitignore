@@ -12,4 +12,6 @@ compile_commands.json
 
 *.S
 *.gimple
+*.o
+*.asm
 ast.lua

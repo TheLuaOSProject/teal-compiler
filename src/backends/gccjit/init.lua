@@ -239,6 +239,10 @@ function Context:as_object()
     return self
 end
 
+function Context:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 --#endregion
 
 ---@class gccjit.Field* : gccjit.Object*
@@ -272,6 +276,10 @@ end
 
 function Field:as_object()
     return libgccjit.gcc_jit_field_as_object(self)
+end
+
+function Field:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
 end
 
 ---@class gccjit.Struct* : gccjit.Type*
@@ -379,6 +387,10 @@ function Struct:as_object()
     return libgccjit.gcc_jit_struct_as_object(self)
 end
 
+function Struct:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.Type* : ffi.cdata*
 local Type = {}
 Type.__index = Type
@@ -483,6 +495,10 @@ function Type:as_object()
     return libgccjit.gcc_jit_type_as_object(self)
 end
 
+function Type:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.VectorType* : gccjit.Type*
 local VectorType = {}
 VectorType.__index = VectorType
@@ -555,6 +571,10 @@ function Location:as_object()
     return libgccjit.gcc_jit_location_as_object(self)
 end
 
+function Location:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.RValue* : gccjit.Object*
 local RValue = {}
 RValue.__index = RValue
@@ -606,6 +626,10 @@ end
 
 function RValue:as_object()
     return libgccjit.gcc_jit_rvalue_as_object(self)
+end
+
+function RValue:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
 end
 
 ---Utility func
@@ -765,6 +789,10 @@ function Param:as_object()
     return libgccjit.gcc_jit_param_as_object(self)
 end
 
+function Param:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.Function* : gccjit.Object*
 local Function = {}
 Function.__index = Function
@@ -827,6 +855,10 @@ end
 
 function Function:as_object()
     return libgccjit.gcc_jit_function_as_object(self)
+end
+
+function Function:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
 end
 
 ---@class gccjit.Block* : gccjit.Object*
@@ -926,6 +958,10 @@ function Block:as_object()
     return libgccjit.gcc_jit_block_as_object(self)
 end
 
+function Block:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.ExtendedAssembly* : gccjit.Object*
 local ExtendedAssembly = {}
 ExtendedAssembly.__index = ExtendedAssembly
@@ -990,6 +1026,10 @@ function ExtendedAssembly:as_object()
     return libgccjit.gcc_jit_extended_asm_as_object(self)
 end
 
+function ExtendedAssembly:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+end
+
 ---@class gccjit.Case* : gccjit.Object*
 local Case = {}
 Case.__index = Case
@@ -1003,6 +1043,10 @@ end
 
 function Case:as_object()
     return libgccjit.gcc_jit_case_as_object(self)
+end
+
+function Case:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
 end
 
 ---@class gccjit.LValue* : gccjit.RValue*
@@ -1063,6 +1107,10 @@ end
 
 function LValue:as_object()
     return libgccjit.gcc_jit_lvalue_as_object(self)
+end
+
+function LValue:__tostring()
+    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
 end
 
 ---@class gccjit.Result* : gccjit.Object*

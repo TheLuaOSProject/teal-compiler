@@ -16,6 +16,7 @@
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
 local gccjit_translator = require("codegen.gccjit")
+local utilities = require("utilities")
 local teal = require("teal.tl")
 
 if not arg[1] then
@@ -24,6 +25,21 @@ if not arg[1] then
 end
 
 local in_f = arg[1]
+local opt_level = 0
+
+---@type string?
+local outfile
+for i = 2, #arg do
+    local v = arg[i]
+    if v:match("-O%d") then
+        opt_level = assert(tonumber(v:match("-O(%d)")) or tonumber(arg[i + 1]))
+    end
+
+    if v == "-o" then outfile = arg[i + 1] end
+end
+
+if not outfile then outfile = in_f:gsub("%.tl$", ".so") end
+
 ---@type string
 local contents do
     local f = assert(io.open(in_f, "r"))
@@ -41,20 +57,19 @@ end
 
 gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
-ctx:set_option("dump generated code", true)
-ctx:set_option("optimization level", 3)
-ctx:dump_to_file("out.S", true)
-local res = assert(ctx:compile())
+ctx:set_option("optimization level", opt_level)
 
-local add = res:get_code("add", "int64_t(*)(int64_t, int64_t)") --[[@as (fun(x: integer, y: integer): integer)?]]
-if not add then
-    error("Failed to get add")
-end
-print(add(43, 321))
+local out_ext = outfile:match("%.(%w+)$")
+ctx:compile_to_file(utilities.match(out_ext) {
+    so = "dynamic library",
+    S = "assembler",
+    o = "object file",
+    default = "executable"
+}, outfile)
+-- ctx:
+-- local res = assert(ctx:compile())
+-- local add = assert(res:get_code("add", "int64_t(*)(int64_t, int64_t)")) --[[@as (fun(x: integer, y: integer): integer)]]
+-- local my_func = assert(res:get_code("my_func", "int64_t(*)(int64_t)")) --[[@as (fun(x: integer): integer)]]
 
-local my_func = res:get_code("my_func", "int64_t(*)(int64_t)") --[[@as (fun(x: integer): integer)?]]
-if not my_func then
-    error("Failed to get my_func")
-end
-
-print(my_func(42))
+-- print(add(43, 321))
+-- print(my_func(42))
