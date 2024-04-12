@@ -1,4 +1,5 @@
-local printf<extern>: function(i: string, ...: c.varadict): nil
+local printf<extern>: function(s: string, ...: c.varadict): integer
+global puts<extern>: function(s: string): nil
 
 local function fib(n: integer): integer
     if n <= 1 then

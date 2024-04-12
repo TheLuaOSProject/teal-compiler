@@ -466,7 +466,7 @@ function Type:unqualified()
     return libgccjit.gcc_jit_type_unqualified(self) --[[@as gccjit.Type*]]
 end
 
----@return gccjit.Type*
+---@return gccjit.Type*?
 function Type:dyncast_array()
     return libgccjit.gcc_jit_type_dyncast_array(self) --[[@as gccjit.Type*]]
 end
@@ -503,7 +503,7 @@ end
 local VectorType = {}
 VectorType.__index = VectorType
 
----@return gccjit.VectorType* : gccjit.Type*
+---@return gccjit.VectorType*?
 function Type:dyncast_vector()
     return libgccjit.gcc_jit_type_dyncast_vector(self) --[[@as gccjit.VectorType*]]
 end
@@ -522,7 +522,7 @@ end
 local FunctionType = {}
 FunctionType.__index = FunctionType
 
----@return gccjit.FunctionType*
+---@return gccjit.FunctionType*?
 function Type:dyncast_function_ptr()
     return libgccjit.gcc_jit_type_dyncast_function_ptr(self) --[[@as gccjit.FunctionType*]]
 end
