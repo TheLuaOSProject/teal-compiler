@@ -18,13 +18,11 @@
 local gccjit = require("backends.gccjit")
 local ffi = require("ffi")
 local utilities = require("utilities")
-local pretty = require("pl.pretty")
-local abi = require("abi")
 
 local ctx = gccjit.Context.acquire()
 
-local int_t, bool_t, number_t, string_t, nil_t
-    = ctx:get_type("int64_t"), ctx:get_type("bool"), ctx:get_type("double"), ctx:get_type("const char *"), ctx:get_type("void")
+local int_t, bool_t, number_t, string_t, nil_t, varargs_t
+    = ctx:get_type("int64_t"), ctx:get_type("bool"), ctx:get_type("double"), ctx:get_type("const char *"), ctx:get_type("void"), ctx:new_opaque_struct_type("varargs")
 
 ---@param node tl.Where | tl.Node
 ---@return gccjit.Location*?
@@ -37,6 +35,23 @@ end
 ---@return fun(): T
 local function ret(x) return function() return x end end
 
+local COMPARISON_OPERATORS = {
+    "==", "~=", "<", ">", "<=", ">="
+}
+
+---@param op string
+---@return boolean
+local function is_comparison(op)
+    local is = false
+    for _, v in ipairs(COMPARISON_OPERATORS) do
+        if op == v then
+            is = true
+            break
+        end
+    end
+    return is
+end
+
 ---@class FunctionType
 ---@field args gccjit.Type*[]
 ---@field rets gccjit.Type*[]
@@ -44,7 +59,7 @@ local function ret(x) return function() return x end end
 ---@param type tl.Type
 ---@return gccjit.Type*[] | FunctionType
 local function conv_teal_type(type)
-    return assert(utilities.switch(type.typename) {
+    return utilities.switch(type.typename) {
         ["integer"] = ret { int_t },
         ["boolean"] = ret { bool_t },
         ["number"]  = ret { number_t },
@@ -67,6 +82,7 @@ local function conv_teal_type(type)
             if names[1] == "c" then
                 return utilities.switch(names[2]) {
                     ["string"] = ret { string_t },
+                    ["varadict"] = ret { varargs_t },
                     default = function(x)
                         error(string.format("Unsupported C type: %s", x))
                     end
@@ -83,7 +99,7 @@ local function conv_teal_type(type)
         default = function(x)
             error(string.format("Unsupported type: %s", x))
         end
-    })
+    }
 end
 
 -- ---@param t tl.TupleType
@@ -142,8 +158,8 @@ end
 
 function visitor.statements(node, ...)
     local stmnts = {}
-    for _, stmt in ipairs(node) do
-        stmnts[#stmnts+1] = visit(stmt, ...) --This may return `nil`, so we can't use `table.insert`
+    for i, stmt in ipairs(node) do
+        stmnts[i] = visit(stmt, ...) --This may return `nil`, so we can't use `table.insert`
     end
     return stmnts
 end
@@ -171,8 +187,6 @@ function visitor.expression_list(node, ...)
     end
     return exprs
 end
-
-
 function visitor.integer(node)
     return ctx:new_rvalue(int_t, "long", assert(tonumber(node.tk)))
 end
@@ -214,12 +228,15 @@ function visitor.op(node, vars, func, block, funcs, ...)
     local e2 = visit(node.e2, vars, func, block, funcs, ...) --[[@as gccjit.RValue* | gccjit.LValue*]]
     local op = assert(node.op.op)
 
-    return ctx:new_binary_op(e1:as_rvalue():get_type(), e1:as_rvalue(), op, e2:as_rvalue(), loc(node))
+    if is_comparison(op) then
+        return ctx:new_comparison(op, e1:as_rvalue(), e2:as_rvalue(), loc(node))
+    else
+        return ctx:new_binary_op(e1:as_rvalue():get_type(), e1:as_rvalue(), op, e2:as_rvalue(), loc(node))
+    end
 end
 
 function visitor.variable(node, vars)
-    local name = assert(node.tk)
-    return assert(vars[name])
+    return assert(vars[node.tk], string.format("Variable '%s' not found", node.tk))
 end
 
 function visitor.variable_list(node, vars, func, block, funcs, ...)
@@ -243,30 +260,55 @@ local function extern_decl(fn_node, fname, funcs)
     ---@type FunctionType
     local ty = conv_teal_type(fn_node.tuple[1])
 
+    local is_va = false
     ---@type gccjit.Param*[]
     local params = {}
     for i, arg in ipairs(ty.args) do
-        table.insert(params, ctx:new_param(arg, string.format("arg%d", i)))
+        if arg ~= varargs_t then
+            table.insert(params, ctx:new_param(arg, string.format("arg%d", i)))
+        else
+            is_va = true
+            break
+        end
     end
 
-    local f = ctx:new_function("imported", fname, ty.rets[1], params, false, loc(fn_node))
+    local f = ctx:new_function("imported", fname, ty.rets[1], params, is_va, loc(fn_node))
     funcs[fname] = f
     return f
 end
 
 function visitor.local_declaration(node, vars, func, block, funcs, ...)
     --Locals could have multple (i.e local a, b, c), but for now only support 1
-    local vname = visit(node.vars, vars, func, block, ...)[1] --[=[@as { name: string, attribute: string }]=]
+    local vname = visit(node.vars, vars, func, block, funcs, ...)[1] --[=[@as { name: string, attribute: string }]=]
 
     if vname.attribute == "extern" then
         return extern_decl(node.decltuple, vname.name, funcs)
     end
 
-    local val = type_is["rvalue"](visit(node.exps, vars, func, block, ...)[1])
+    local val = type_is["rvalue"](visit(node.exps, vars, func, block, funcs, ...)[1])
     local lcl = func:new_local(val:get_type(), vname.name, loc(node))
     block:add_assignment(lcl, val, loc(node))
 
-    vars[vname] = lcl
+    vars[vname.name] = lcl
+end
+
+visitor["if"] = function (node, vars, func, block, funcs, ...)
+    local init_block = assert(node.if_blocks[1])
+
+    local cond, body, otherwise
+        = func:new_block("cond"), func:new_block("body"), func:new_block("otherwise")
+
+    cond:end_with_conditional(visit(init_block.exp, vars, func, block, funcs, ...), body, otherwise, loc(node))
+
+    visit(init_block.body, vars, func, body, funcs, ...)
+
+    if #node.if_blocks > 1 then
+        visit(node.if_blocks[2], vars, func, otherwise, funcs, ...)
+    end
+end
+
+function visitor.if_block(node, ...)
+    return visit(node.body, ...)
 end
 
 ---@param type gccjit.Function*.Kind
@@ -294,6 +336,7 @@ local function new_function(type, node, funcs)
     local block = fn:new_block(string.format("fnblock_%s", name))
     funcs[name] = fn
     visit(node.body, vars, fn, block, funcs)
+    fn:dump_to_dot(string.format("%s.dot", name))
     return fn
 end
 

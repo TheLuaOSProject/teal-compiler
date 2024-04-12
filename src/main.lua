@@ -14,7 +14,6 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
-
 local gccjit_translator = require("codegen.gccjit")
 local utilities = require("utilities")
 local teal = require("teal.tl")
@@ -26,7 +25,7 @@ end
 
 local in_f = arg[1]
 local opt_level = 0
-
+local debug_info = false
 ---@type string?
 local outfile
 for i = 2, #arg do
@@ -36,6 +35,7 @@ for i = 2, #arg do
     end
 
     if v == "-o" then outfile = arg[i + 1] end
+    if v == "-g" then debug_info = true end
 end
 
 if not outfile then outfile = in_f:gsub("%.tl$", ".so") end
@@ -58,14 +58,24 @@ end
 gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
 ctx:set_option("optimization level", opt_level)
+ctx:set_option("debuginfo", debug_info)
 
 local out_ext = outfile:match("%.(%w+)$")
-ctx:compile_to_file(utilities.match(out_ext) {
+---@type gccjit.OutputKind | "gimple"
+local kind = utilities.match(out_ext) {
     so = "dynamic library",
     S = "assembler",
     o = "object file",
+    gimple = "gimple",
     default = "executable"
-}, outfile)
+}
+
+print(string.format("Compiling to %s (type: %s)", outfile, kind))
+if kind == "gimple" then
+    ctx:dump_to_file(outfile, true)
+else
+    ctx:compile_to_file(kind --[[@as gccjit.OutputKind]], outfile)
+end
 -- ctx:
 -- local res = assert(ctx:compile())
 -- local add = assert(res:get_code("add", "int64_t(*)(int64_t, int64_t)")) --[[@as (fun(x: integer, y: integer): integer)]]

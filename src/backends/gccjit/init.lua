@@ -308,7 +308,7 @@ end
 ---@param location gccjit.Location*?
 ---@return gccjit.Struct*
 function Context:new_opaque_struct_type(name, location)
-    return libgccjit.gcc_jit_context_new_opaque_struct_type(self, location, name) --[[@as gccjit.Struct*]]
+    return libgccjit.gcc_jit_context_new_opaque_struct(self, location, name) --[[@as gccjit.Struct*]]
 end
 
 ---@param fields gccjit.Field*[]
@@ -700,6 +700,36 @@ function Context:new_unary_op(op, result_type, value, location)
     return libgccjit.gcc_jit_context_new_unary_op(self, location, libgccjit["GCC_JIT_UNARY_OP_"], result_type, value) --[[@as gccjit.RValue*]]
 end
 
+---@alias gccjit.Comparison
+---| "eq"
+---| "==" GCC_JIT_COMPARISON_EQ
+---| "ne"
+---| "!=" GCC_JIT_COMPARISON_NE
+---| "lt"
+---| "<" GCC_JIT_COMPARISON_LT
+---| "le"
+---| "<=" GCC_JIT_COMPARISON_LE
+---| "gt"
+---| ">" GCC_JIT_COMPARISON_GT
+---| "ge"
+---| ">=" GCC_JIT_COMPARISON_GE
+
+---@param op gccjit.Comparison
+---@param lhs gccjit.RValue*
+---@param rhs gccjit.RValue*
+---@param location gccjit.Location*?
+---@return gccjit.RValue*
+function Context:new_comparison(op, lhs, rhs, location)
+    op = op :gsub("==", "eq")
+            :gsub("!=", "ne")
+            :gsub("<=", "le")
+            :gsub(">=", "ge")
+            :gsub("<", "lt")
+            :gsub(">", "gt")
+            :gsub(" ", "_"):upper()
+    return libgccjit.gcc_jit_context_new_comparison(self, location, libgccjit["GCC_JIT_COMPARISON_"..op], lhs, rhs) --[[@as gccjit.RValue*]]
+end
+
 ---@alias gccjit.BinaryOperation
 ---| "plus"
 ---| "+" GCC_JIT_BINARY_OP_PLUS
@@ -745,36 +775,6 @@ function Context:new_binary_op(result_type, lhs, op, rhs, location)
             :gsub("%|%|", "logical or")
             :gsub(" ", "_"):upper()
     return libgccjit.gcc_jit_context_new_binary_op(self, location, libgccjit["GCC_JIT_BINARY_OP_"..op], result_type, lhs, rhs) --[[@as gccjit.RValue*]]
-end
-
----@alias gccjit.Comparison
----| "eq"
----| "==" GCC_JIT_COMPARISON_EQ
----| "ne"
----| "!=" GCC_JIT_COMPARISON_NE
----| "lt"
----| "<" GCC_JIT_COMPARISON_LT
----| "le"
----| "<=" GCC_JIT_COMPARISON_LE
----| "gt"
----| ">" GCC_JIT_COMPARISON_GT
----| "ge"
----| ">=" GCC_JIT_COMPARISON_GE
-
----@param op gccjit.Comparison
----@param lhs gccjit.RValue*
----@param rhs gccjit.RValue*
----@param location gccjit.Location*?
----@return gccjit.RValue*
-function Context:new_comparison(op, lhs, rhs, location)
-    op = op :gsub("==", "eq")
-            :gsub("!=", "ne")
-            :gsub("<", "lt")
-            :gsub("<=", "le")
-            :gsub(">", "gt")
-            :gsub(">=", "ge")
-            :gsub(" ", "_"):upper()
-    return libgccjit.gcc_jit_context_new_comparison(self, location, libgccjit["GCC_JIT_COMPARISON_"..op], lhs, rhs) --[[@as gccjit.RValue*]]
 end
 
 ---@param name string
