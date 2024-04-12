@@ -38,5 +38,5 @@
         ".luarocks",
         "build"
     ],
-    "workspace.checkThirdParty": false,
+    "workspace.checkThirdParty": false
 }

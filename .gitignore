@@ -14,4 +14,10 @@ compile_commands.json
 *.gimple
 *.o
 *.asm
+*.so
 ast.lua
+
+
+*.dot
+
+test

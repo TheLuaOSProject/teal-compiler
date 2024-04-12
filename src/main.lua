@@ -70,7 +70,6 @@ local kind = utilities.match(out_ext) {
     default = "executable"
 }
 
-print(string.format("Compiling to %s (type: %s)", outfile, kind))
 if kind == "gimple" then
     ctx:dump_to_file(outfile, true)
 else

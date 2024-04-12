@@ -334,6 +334,10 @@ function Struct:get_field_count()
 end
 Struct.__len = Struct.get_field_count
 
+function Struct:as_type()
+    return libgccjit.gcc_jit_struct_as_type(self)
+end
+
 ---@param type gccjit.Type*
 ---@param fields gccjit.Field*[]
 ---@param values gccjit.RValue*[]
@@ -489,6 +493,10 @@ end
 ---@return boolean
 function Type:is_struct()
     return libgccjit.gcc_jit_type_is_struct(self) ~= 0
+end
+
+function Type:as_type()
+    return self
 end
 
 function Type:as_object()
