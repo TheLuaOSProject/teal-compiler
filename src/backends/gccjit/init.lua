@@ -161,7 +161,7 @@ end
 ---@param location gccjit.Location*?
 ---@return gccjit.RValue*
 function Context:new_cast(type, value, location)
-    return libgccjit.gcc_jit_context_new_cast(self, location, type, value) --[[@as gccjit.RValue*]]
+    return libgccjit.gcc_jit_context_new_cast(self, location, value, type) --[[@as gccjit.RValue*]]
 end
 
 ---@param type gccjit.Type*
@@ -334,6 +334,10 @@ function Struct:get_field_count()
 end
 Struct.__len = Struct.get_field_count
 
+function Struct:as_type()
+    return libgccjit.gcc_jit_struct_as_type(self)
+end
+
 ---@param type gccjit.Type*
 ---@param fields gccjit.Field*[]
 ---@param values gccjit.RValue*[]
@@ -466,7 +470,7 @@ function Type:unqualified()
     return libgccjit.gcc_jit_type_unqualified(self) --[[@as gccjit.Type*]]
 end
 
----@return gccjit.Type*
+---@return gccjit.Type*?
 function Type:dyncast_array()
     return libgccjit.gcc_jit_type_dyncast_array(self) --[[@as gccjit.Type*]]
 end
@@ -491,6 +495,10 @@ function Type:is_struct()
     return libgccjit.gcc_jit_type_is_struct(self) ~= 0
 end
 
+function Type:as_type()
+    return self
+end
+
 function Type:as_object()
     return libgccjit.gcc_jit_type_as_object(self)
 end
@@ -503,7 +511,7 @@ end
 local VectorType = {}
 VectorType.__index = VectorType
 
----@return gccjit.VectorType* : gccjit.Type*
+---@return gccjit.VectorType*?
 function Type:dyncast_vector()
     return libgccjit.gcc_jit_type_dyncast_vector(self) --[[@as gccjit.VectorType*]]
 end
@@ -522,7 +530,7 @@ end
 local FunctionType = {}
 FunctionType.__index = FunctionType
 
----@return gccjit.FunctionType*
+---@return gccjit.FunctionType*?
 function Type:dyncast_function_ptr()
     return libgccjit.gcc_jit_type_dyncast_function_ptr(self) --[[@as gccjit.FunctionType*]]
 end

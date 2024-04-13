@@ -12,7 +12,7 @@
             // "luaexe": "luajit",
             "path": "${workspaceFolder}/?.lua;${workspaceFolder}/?/init.lua;${workspaceFolder}/src/?.lua;${workspaceFolder}/src/?/init.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?/init.lua;",
             "cpath": "${workspaceFolder}/?.so;${workspaceFolder}/lua_modules/lib/lua/5.1/?.so;",
-            "stopOnEntry": true,
+            "stopOnEntry": false,
             "type": "lua",
             "console": "internalConsole",
         }
