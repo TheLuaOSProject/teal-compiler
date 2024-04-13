@@ -42,22 +42,27 @@ local function loc(node)
     return ctx:new_location(node.f, node.y, node.x)
 end
 
-local COMPARISON_OPERATORS = {
-    "==", "~=", "<", ">", "<=", ">="
-}
-
----@param op string
----@return boolean
-local function is_comparison(op)
-    local is = false
-    for _, v in ipairs(COMPARISON_OPERATORS) do
-        if op == v then
-            is = true
-            break
-        end
-    end
-    return is
+---Turn stuff like \\n into \n
+---@param str string
+function string.unescape(str)
+    return (str:gsub("\\(.)", function (c)
+        return ({
+            ["n"] = "\n",
+            ["t"] = "\t",
+            ["r"] = "\r",
+            ["\\"] = "\\"
+        })[c] or c
+    end))
 end
+
+local is_comparison = {
+    ["=="]  = true,
+    ["~="]  = true,
+    ["<"]   = true,
+    [">"]   = true,
+    ["<="]  = true,
+    [">="]  = true
+}
 
 ---@alias PrimitiveType '"integer"' | '"boolean"' | '"number"' | '"String"' | '"nil_t"'
 ---@alias PrimitiveTypes.C '"int8_t"' | '"int16_t"' | '"int32_t"' | '"int64_t"' | '"uint8_t"' | '"uint16_t"' | '"uint32_t"' | '"uint64_t"' | '"const char *"' | '"cvaradict"'
@@ -272,13 +277,13 @@ _=type_is.type
 ---@field is_external boolean
 ---@field raw gccjit.Function*
 
----@class FunctionContext.Local.Block
----@field raw gccjit.Block*
----@field ended boolean
+-- -@class FunctionContext.Local.Block
+-- -@field raw gccjit.Block*
+-- -@field ended boolean
 
 ---@class FunctionContext.Local : FunctionContext
 ---@field is_external false
----@field block_stack FunctionContext.Local.Block[]
+---@field block_stack gccjit.Block*[]
 ---@field variables { [string] : gccjit.LValue* }
 
 ---@class FunctionContext.External : FunctionContext
@@ -287,17 +292,23 @@ _=type_is.type
 ---@type { [string] : FunctionContext }
 local functions = {}
 
----@alias Visitor.Function fun(node: tl.Node, current_func: FunctionContext.Local?, ...): ...
+---@alias Visitor.Function fun(node: tl.Node, fctx: FunctionContext.Local): ...
 
 ---@class Visitor
 ---@field [tl.NodeKind] Visitor.Function
 local visitor = {}
 
+---This needs to be 3 lines so its not inlined properly, making it easier to debug!
 ---@type Visitor.Function
-local function visit(node, ...)
+local function visit(node, fctx)
+    -- return (visitor[node.kind] or error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node)))))(node)
     local vtor = visitor[node.kind]
-    if not vtor then error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node)))) end
-    return vtor(node, ...)
+    if not vtor then
+        error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node))))
+    end
+
+    --don't TCO so debug looks nicer
+    return vtor(node, fctx)
 end
 
 --#region Visitor functions
@@ -314,10 +325,10 @@ function visitor.identifier(node)
 end
 
 ---@return VariableDeclaration[]
-function visitor.variable_list(node)
+function visitor.variable_list(node, func)
     local vars = {}
     for i, var in ipairs(node) do
-        vars[i] = visit(var)
+        vars[i] = visit(var, func)
     end
     return vars
 end
@@ -349,23 +360,22 @@ end
 ---@alias Scope "'local'" | "'global'"
 
 ---@param node tl.Node
----@param current_func FunctionContext.Local
+---@param fctx FunctionContext.Local
 ---@param scope Scope
-local function declaration(node, current_func, scope)
+local function declaration(node, fctx, scope)
     ---@type VariableDeclaration
-    local var = visit(node.vars)[1]
+    local var = visit(node.vars, fctx)[1]
     if var.attribute == "extern" then
         return extern_func_decl(node, var)
     end
-    local fctx = assert(current_func, "Expected a function context")
 
     ---@type (gccjit.RValue* | gccjit.LValue*)[]?
-    local val = node.exps and visit(node.exps, current_func) or nil
+    local val = node.exps and visit(node.exps, fctx) or nil
     ---@type gccjit.Type*?
     local ty = nil
     local tynode = conv_teal_type(node.decltuple)
     if tynode.id == type_cache.nil_t.id then
-        if val and #val > 0 then
+        if val then
             ty = val[1]:as_rvalue():get_type()
         end
     else
@@ -373,20 +383,38 @@ local function declaration(node, current_func, scope)
     end
     if not ty then error("Variable "..var.name.." declared without a type!") end
     local lval = fctx.raw:new_local(ty, var.name, loc(node))
-    current_func.variables[var.name] = lval
+    fctx.variables[var.name] = lval
+
+    if val then
+        fctx.block_stack[#fctx.block_stack]:add_assignment(lval, val[1]:as_rvalue(), loc(node))
+    end
+
     return lval
 end
 
-function visitor.local_declaration(node, current_func, ...)
-    return declaration(node, current_func, "local")
+function visitor.local_declaration(node, fctx)
+    return declaration(node, fctx, "local")
 end
 
-function visitor.global_declaration(node, current_func, ...)
-    return declaration(node, current_func, "global")
+function visitor.global_declaration(node, fctx)
+    return declaration(node, fctx, "global")
+end
+
+function visitor.assignment(node, fctx)
+    local lval = visit(node.vars, fctx)
+    local rval = visit(node.exps, fctx)
+
+    assert(ffi.typeof(lval[1]) == ffi.typeof("gcc_jit_lvalue *"), "Expected an lvalue")
+
+    fctx.block_stack[#fctx.block_stack]:add_assignment(lval[1], rval[1]:as_rvalue(), loc(node))
+end
+
+function visitor.paren(node, fctx)
+    return visit(node.e1, fctx)
 end
 
 ---@return Type.Function.Parameter
-function visitor.argument(node, ...)
+function visitor.argument(node)
     return {
         name = node.tk,
         type = conv_teal_type(node.argtype)
@@ -394,27 +422,27 @@ function visitor.argument(node, ...)
 end
 
 ---@return Type.Function.Parameter[]
-function visitor.argument_list(node, ...)
+function visitor.argument_list(node, fctx)
     local args = {}
     for i, arg in ipairs(node) do
-        args[i] = visit(arg, ...)
+        args[i] = visit(arg, fctx)
     end
     return args
 end
 
 ---@param node tl.Node
----@param current_func FunctionContext
+---@param fctx FunctionContext
 ---@param scope Scope
 ---@return gccjit.Function*
-local function func(node, current_func, scope)
-    if current_func then error("Cannot nest functions") end
+local function func(node, fctx, scope)
+    if fctx then error("Cannot nest functions") end
 
     ---@type string
-    local name = visit(node.name).name
+    local name = visit(node.name, fctx).name
 
     local ret = conv_teal_type(node.rets)
     ---@type Type.Function.Parameter[]
-    local args = visit(node.args)
+    local args = visit(node.args, fctx)
 
     ---@type { [string] : gccjit.LValue* }
     local vars = {}
@@ -432,7 +460,7 @@ local function func(node, current_func, scope)
     local fctx = {
         raw = func,
         is_external = false,
-        block_stack = { { raw = root_block, ended = false } },
+        block_stack = { root_block },
         variables = vars,
         name = name
     }
@@ -441,10 +469,10 @@ local function func(node, current_func, scope)
     visit(node.body, fctx)
 
     local block = fctx.block_stack[#fctx.block_stack]
-    if not block.ended then
+    if block then
         if ret.id == type_cache.nil_t.id then
-            block.raw:end_with_void_return(loc(node))
-            block.ended = true
+            block:end_with_void_return(loc(node))
+            fctx.block_stack[#fctx.block_stack] = nil
         else
             error("["..tostring(loc(node)).."] Function with non-nil return type must end with a return statement")
         end
@@ -454,41 +482,36 @@ local function func(node, current_func, scope)
     return func
 end
 
-function visitor.local_function(node, current_func)
-    return func(node, current_func, "local")
+function visitor.local_function(node, fctx)
+    return func(node, fctx, "local")
 end
 
-function visitor.global_function(node, current_func)
-    return func(node, current_func, "global")
+function visitor.global_function(node, fctx)
+    return func(node, fctx, "global")
 end
 
-function visitor.statements(node, ...)
+function visitor.statements(node, fctx)
     local statements = {}
     for _, stmt in ipairs(node) do
-        statements[#statements+1] = visit(stmt, ...)
+        local var, is_func_call = visit(stmt, fctx)
+
+        if is_func_call then fctx.block_stack[#fctx.block_stack]:add_eval(var, loc(node)) end
+
+        statements[#statements+1] = var
     end
     return statements
 end
 
-function visitor.expression_list(node, ...)
+function visitor.expression_list(node, fctx)
     local expressions = {}
     for _, exp in ipairs(node) do
-        expressions[#expressions+1] = visit(exp, ...)
+        expressions[#expressions+1] = visit(exp, fctx)
     end
     return expressions
 end
-
--- function visitor.if_block(node, fctx)
---     ---@type gccjit.RValue*
---     local cond =
---     visit(node.body, fctx)
---     return cond
--- end
-
---#region Literal-likes
-
-function visitor.variable(node, current_func)
-    return assert(current_func, "Expected a function context").variables[node.tk] or functions[node.tk]
+--#region literals
+function visitor.variable(node, fctx)
+    return fctx.variables[node.tk] or functions[node.tk]
 end
 
 function visitor.integer(node)
@@ -501,44 +524,44 @@ end
 
 ---for now will just make a literal, in the future switch to String
 function visitor.string(node)
-    return ctx:new_string_literal(node.conststr)
+    return ctx:new_string_literal(node.conststr:unescape())
 end
 
 --#endregion
 
----@param func FunctionContext
+---@param func gccjit.Function*
 ---@param args gccjit.RValue*[]
 ---@param loc gccjit.Location*?
----@param current_func FunctionContext.Local
----@param ... any
+---@param fctx FunctionContext.Local
 ---@return gccjit.RValue*
-local function function_call(func, args, loc, current_func, ...)
-    local block = current_func.block_stack[#current_func.block_stack]
-
+local function function_call(func, args, loc, fctx)
     ---@type gccjit.RValue*[]
     local rawargs = {}
     for i, v in ipairs(args) do
         rawargs[i] = v:as_rvalue()
     end
 
-    local call = ctx:new_call(func.raw, rawargs, loc)
-    block.raw:add_eval(call, loc)
-    return call
+    return ctx:new_call(func, rawargs, loc)
 end
 
-function visitor.op(node, current_func, ...)
-    assert(current_func, "Expected a function context")
+--this just gets the type to cast to
+function visitor.cast(node)
+    return conv_teal_type(node.casttype)
+end
+
+function visitor.op(node, fctx)
+    ---@type gccjit.RValue* | gccjit.LValue* | FunctionContext
+    local lhs = visit(node.e1, fctx)
+    ---@type gccjit.RValue* | gccjit.LValue* | Type
+    local rhs = visit(node.e2, fctx)
     local op = assert(node.op.op, "Expected an operator")
     if op == "@funcall" then
-        return function_call(visit(node.e1, current_func, ...), visit(node.e2, current_func, ...), loc(node), current_func, ...)
+        return function_call(lhs.raw, rhs, loc(node), fctx), true
+    elseif op == "as" then
+        return ctx:new_cast(rhs.raw, lhs:as_rvalue(), loc(node))
     end
 
-    ---@type gccjit.RValue* | gccjit.LValue*
-    local lhs = visit(node.e1, current_func, ...)--:as_rvalue()
-    ---@type gccjit.RValue* | gccjit.LValue*
-    local rhs = visit(node.e2, current_func, ...)--:as_rvalue()
-
-    if is_comparison(op) then
+    if is_comparison[op] then
         return ctx:new_comparison(op, lhs:as_rvalue(), rhs:as_rvalue(), loc(node))
     else
         return ctx:new_binary_op(lhs:as_rvalue():get_type(), lhs:as_rvalue(), op, rhs:as_rvalue(), loc(node))
@@ -557,42 +580,39 @@ visitor["if"] = function (node, fctx)
     if_block:add_comment("if block for function "..fctx.name, loc(node))
     end_block:add_comment("end block for function "..fctx.name, loc(node))
 
-    fctx.block_stack[#fctx.block_stack+1] = { raw = if_block, ended = false }
+    local newidx = #fctx.block_stack+1
+    fctx.block_stack[newidx] = if_block
     visit(if_block_node.body, fctx)
-    if not fctx.block_stack[#fctx.block_stack].ended then
+    if fctx.block_stack[newidx] then
         if_block:end_with_jump(end_block, loc(node))
+        fctx.block_stack[newidx] = nil
     end
-    fctx.block_stack[#fctx.block_stack] = nil
 
     if node.if_blocks[2] then
         else_block:add_comment("else block for function "..fctx.name, loc(node))
-        fctx.block_stack[#fctx.block_stack+1] = { raw = else_block, ended = false }
+        newidx = #fctx.block_stack+1
+        fctx.block_stack[newidx] = else_block
         visit(node.if_blocks[2].body, fctx)
-        if not fctx.block_stack[#fctx.block_stack].ended then
+        if fctx.block_stack[newidx] then
             else_block:end_with_jump(end_block, loc(node))
+            fctx.block_stack[newidx] = nil
         end
-        fctx.block_stack[#fctx.block_stack] = nil
     else
         else_block:end_with_jump(end_block, loc(node))
     end
 
-    assert(not fctx.block_stack[#fctx.block_stack].ended, "Block has already ended")
-    fctx.block_stack[#fctx.block_stack].raw:end_with_conditional(cond, if_block, else_block, loc(node))
+    assert(fctx.block_stack[#fctx.block_stack], "Block has already ended")
+    fctx.block_stack[#fctx.block_stack]:end_with_conditional(cond, if_block, else_block, loc(node))
     fctx.block_stack[#fctx.block_stack] = nil
-    fctx.block_stack[#fctx.block_stack+1] = { raw = end_block, ended = false }
+    fctx.block_stack[#fctx.block_stack+1] = end_block
 end
 
-visitor["return"] = function (node, current_func, ...)
-    local fctx = assert(current_func, "Expected a function context")
+visitor["return"] = function (node, fctx)
     local ret = visit(node.exps[1], fctx)
-    fctx.block_stack[#fctx.block_stack].raw:end_with_return(ret:as_rvalue(), loc(node))
-    fctx.block_stack[#fctx.block_stack].ended = true
+    fctx.block_stack[#fctx.block_stack]:end_with_return(ret:as_rvalue(), loc(node))
+    fctx.block_stack[#fctx.block_stack] = nil
 end
 --#endregion
-
-function visitor.cast(node, current_func, ...)
-    local to = conv_teal_type(node.casttype)
-end
 
 return {
     compiler_context = ctx,
@@ -600,7 +620,7 @@ return {
     -- compile = visit --[=[@as fun(node: tl.Node): gccjit.Object*[]]=]
     ---@param node tl.Node
     ---@return any?
-    compile = function (node, ...)
-        return visit(node, ...)
+    compile = function (node)
+        return visit(node, nil)
     end
 }

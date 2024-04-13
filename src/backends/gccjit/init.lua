@@ -161,7 +161,7 @@ end
 ---@param location gccjit.Location*?
 ---@return gccjit.RValue*
 function Context:new_cast(type, value, location)
-    return libgccjit.gcc_jit_context_new_cast(self, location, type, value) --[[@as gccjit.RValue*]]
+    return libgccjit.gcc_jit_context_new_cast(self, location, value, type) --[[@as gccjit.RValue*]]
 end
 
 ---@param type gccjit.Type*

@@ -26,6 +26,7 @@ end
 local in_f = arg[1]
 local opt_level = 0
 local debug_info = false
+local use_gc_for_compile = false
 ---@type string?
 local outfile
 for i = 2, #arg do
@@ -36,6 +37,12 @@ for i = 2, #arg do
 
     if v == "-o" then outfile = arg[i + 1] end
     if v == "-g" then debug_info = true end
+    if v == "--use-gc-for-compile" then use_gc_for_compile = true  end
+end
+
+if not use_gc_for_compile then
+    collectgarbage("stop")
+    collectgarbage("stop")
 end
 
 if not outfile then outfile = in_f:gsub("%.tl$", ".so") end

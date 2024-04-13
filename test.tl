@@ -16,5 +16,7 @@ global function main(): c.int32_t
     local result = fib(i)
     printf("fib(%d) = %d\n", i, result)
 
+    i = (result / 10) as integer
+
     return 0 as c.int32_t
 end
