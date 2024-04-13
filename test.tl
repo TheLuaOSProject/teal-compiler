@@ -3,9 +3,9 @@ local printf<extern>: function(s: string, ...: c.varadict): c.int32_t
 local function fib(n: integer): integer
     if n <= 1 then
         return n
+    else
+        return fib(n - 1) + fib(n - 2)
     end
-
-    return fib(n - 1) + fib(n - 2)
 end
 
 global function main(): c.int32_t

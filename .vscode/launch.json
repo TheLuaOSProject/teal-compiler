@@ -2,14 +2,15 @@
     "configurations": [
         {
             "arg": [
-                "test.tl"
+                "test.tl",
+                "-o", "out"
             ],
-            "runtimeArgs": "-joff -O0",
+            // "runtimeArgs": "-joff -O0 -jp=a",
             "name": "launch",
             "program": "${workspaceFolder}/src/main.lua",
             "request": "launch",
             "luaVersion": "luajit",
-            // "luaexe": "luajit",
+            "luaexe": "${workspaceFolder}/lua",
             "path": "${workspaceFolder}/?.lua;${workspaceFolder}/?/init.lua;${workspaceFolder}/src/?.lua;${workspaceFolder}/src/?/init.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?/init.lua;",
             "cpath": "${workspaceFolder}/?.so;${workspaceFolder}/lua_modules/lib/lua/5.1/?.so;",
             "stopOnEntry": false,
