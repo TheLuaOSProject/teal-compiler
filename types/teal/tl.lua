@@ -908,10 +908,7 @@ local tl = {}
 ---| "long"
 ---| "implicit"
 
----@alias tl.Attribute
----| "const"
----| "close"
----| "total"
+---@alias tl.Attribute string
 
 ---@alias tl.Narrow
 ---| "narrow"

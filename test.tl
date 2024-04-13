@@ -1,5 +1,4 @@
 local printf<extern>: function(s: string, ...: c.varadict): c.int32_t
-global puts<extern>: function(s: string): nil
 
 local function fib(n: integer): integer
     if n <= 1 then
@@ -10,13 +9,9 @@ local function fib(n: integer): integer
 end
 
 global function main(): c.int32_t
-    printf "Hello, World!\n"
-
-    local i = 10
+    local i = 47
     local result = fib(i)
-    printf("fib(%d) = %d\n", i, result)
-
-    i = (result / 10) as integer
+    printf("Final: fib(%lld) = %lld\n", i, result)
 
     return 0 as c.int32_t
 end

@@ -582,7 +582,9 @@ visitor["if"] = function (node, fctx)
 
     local newidx = #fctx.block_stack+1
     fctx.block_stack[newidx] = if_block
-    visit(if_block_node.body, fctx)
+    visit(if_block_node.body, fctx) --fill the block
+
+    --if the block is still on the stack, then it didn't end, so it can continue to the end block
     if fctx.block_stack[newidx] then
         if_block:end_with_jump(end_block, loc(node))
         fctx.block_stack[newidx] = nil
@@ -621,6 +623,7 @@ return {
     ---@param node tl.Node
     ---@return any?
     compile = function (node)
+---@diagnostic disable-next-line: param-type-mismatch
         return visit(node, nil)
     end
 }
