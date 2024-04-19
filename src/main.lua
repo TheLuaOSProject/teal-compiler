@@ -16,7 +16,7 @@
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 local gccjit_translator = require("codegen.gccjit")
 local utilities = require("utilities")
-local teal = require("teal.tl")
+local teal = require("teal.tl") or require("tl")
 
 if not arg[1] then
     io.stderr:write("Usage: "..arg[0].." <input file>\n")
