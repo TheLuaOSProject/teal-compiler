@@ -18,40 +18,49 @@ local gccjit_translator = require("codegen.gccjit")
 local utilities = require("utilities")
 local teal = require("teal.tl")
 
-if not arg[1] then
-    io.stderr:write("Usage: "..arg[0].." <input file>\n")
+if not arg[1] or arg[1] == "-h" or arg[1] == "--help" then
+    io.stderr:write(string.format([=[Usage: %s <input file> [-O<level>] [-o <output file>] [-g] [--use-gc-for-compile] [--dump-tree]]=], arg[0]))
     os.exit(1)
 end
 
 local in_f = arg[1]
-local opt_level = 0
-local debug_info = false
-local use_gc_for_compile = false
----@type string?
-local outfile
+-- local opt_level = 0
+-- local debug_info = false
+-- local use_gc_for_compile = false
+-- local opt_level, debug_info, use_gc_for_compile = 0, false, false
+local opts = {
+    opt_level = 0,
+    debug_info = false,
+    use_gc_for_compile = false,
+    ---@type string?
+    outfile = nil,
+    dump_tree = false
+}
+
 for i = 2, #arg do
     local v = arg[i]
     if v:match("-O%d") then
-        opt_level = assert(tonumber(v:match("-O(%d)")) or tonumber(arg[i + 1]))
+        opts.opt_level = assert(tonumber(v:match("-O(%d)")) or tonumber(arg[i + 1]))
     end
 
-    if v == "-o" then outfile = arg[i + 1] end
-    if v == "-g" then debug_info = true end
-    if v == "--use-gc-for-compile" then use_gc_for_compile = true  end
+    if v == "-o" then opts.outfile = arg[i + 1] end
+    if v == "-g" then opts.debug_info = true end
+    if v == "--use-gc-for-compile" then opts.use_gc_for_compile = true end
+    if v == "--dump-tree" then opts.dump_tree = true end
 end
 
-if not use_gc_for_compile then
+if not opts.use_gc_for_compile then
     collectgarbage("stop")
     collectgarbage("stop")
 end
 
-if not outfile then outfile = in_f:gsub("%.tl$", ".so") end
+if not opts.outfile then opts.outfile = in_f:gsub("%.tl$", ".so") end
 
 ---@type string
 local contents do
     local f = assert(io.open(in_f, "r"))
     contents = f:read("*a")
-    f:close()
+    assert(f:close())
 end
 
 local ast, errs, modules = teal.parse(contents, in_f)
@@ -64,10 +73,11 @@ end
 
 gccjit_translator.compile(ast)
 local ctx = gccjit_translator.compiler_context
-ctx:set_option("optimization level", opt_level)
-ctx:set_option("debuginfo", debug_info)
+ctx:set_option("optimization level", opts.opt_level)
+ctx:set_option("debuginfo", opts.debug_info)
+ctx:set_option("dump initial tree", opts.dump_tree)
 
-local out_ext = outfile:match("%.(%w+)$")
+local out_ext = opts.outfile:match("%.(%w+)$")
 ---@type gccjit.OutputKind | "gimple"
 local kind = utilities.match(out_ext) {
     so = "dynamic library",
@@ -78,14 +88,7 @@ local kind = utilities.match(out_ext) {
 }
 
 if kind == "gimple" then
-    ctx:dump_to_file(outfile, true)
+    ctx:dump_to_file(opts.outfile, true)
 else
-    ctx:compile_to_file(kind --[[@as gccjit.OutputKind]], outfile)
+    ctx:compile_to_file(kind --[[@as gccjit.OutputKind]], opts.outfile)
 end
--- ctx:
--- local res = assert(ctx:compile())
--- local add = assert(res:get_code("add", "int64_t(*)(int64_t, int64_t)")) --[[@as (fun(x: integer, y: integer): integer)]]
--- local my_func = assert(res:get_code("my_func", "int64_t(*)(int64_t)")) --[[@as (fun(x: integer): integer)]]
-
--- print(add(43, 321))
--- print(my_func(42))

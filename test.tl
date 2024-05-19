@@ -1,17 +1,9 @@
-local printf<extern>: function(s: string, ...: c.varadict): c.int32_t
+local type cstring = c.pointer<c.const<c.int8_t>>
+local printf<extern>: function(s: cstring, ...: c.varadict): c.int32_t
 
-local function fib(n: integer): integer
-    if n <= 1 then
-        return n
-    else
-        return fib(n - 1) + fib(n - 2)
-    end
-end
-
-global function main(): c.int32_t
-    local i = 47
-    local result = fib(i)
-    printf("Final: fib(%lld) = %lld\n", i, result)
+global function main(argc: c.int32_t, argv: c.pointer<cstring>): c.int32_t
+    printf("Argc: %d, argv: %p\n", argc, argv)
+    printf("progname: %s\n", argv[0])
 
     return 0 as c.int32_t
 end

@@ -123,7 +123,7 @@ function Context:dump_reproducer_to_file(path)
 end
 
 ---@param dumpname string
----@return ffi.cdata* char *
+---@return ffi.cdata* `char *`
 function Context:enable_dump(dumpname)
     local ret = ffi.new("char*[1]")
     libgccjit.gcc_jit_context_enable_dump(self, dumpname, ret)
@@ -138,7 +138,8 @@ function Context:new_call(func, args, location)
     local numargs = args and #args or 0
     local cargs = ffi.new("gcc_jit_rvalue*[?]", numargs)
     for i = 1, numargs do
-        cargs[i-1] = (args)[i]
+        --[[ @cast args gccjit.RValue*[] ]]
+        cargs[i-1] = args[i]
     end
     return libgccjit.gcc_jit_context_new_call(self, location, func, numargs, cargs) --[[@as gccjit.RValue*]]
 end
@@ -181,7 +182,7 @@ end
 ---| "unsigned char" GCC_JIT_TYPE_UNSIGNED_CHAR
 ---| "short" GCC_JIT_TYPE_SHORT
 ---| "unsigned short" GCC_JIT_TYPE_UNSIGNED_SHORT
---- "int" GCC_JIT_TYPE_INT
+--- "int" GCC_JIT_TYPE_INT, specialised in the func def, purposefully not as an alias
 ---| "unsigned int" GCC_JIT_TYPE_UNSIGNED_INT
 ---| "long" GCC_JIT_TYPE_LONG
 ---| "unsigned long" GCC_JIT_TYPE_UNSIGNED_LONG
@@ -214,7 +215,6 @@ function Context:get_type(tname, num_bytes, is_signed)
     if tname == "int" then
         return libgccjit.gcc_jit_context_get_int_type(self, num_bytes, is_signed)
     end
-
     tname = tname:gsub(" ", "_"):gsub("*", "PTR"):upper()
     return libgccjit.gcc_jit_context_get_type(self, libgccjit["GCC_JIT_TYPE_"..tname]) --[[@as gccjit.Type*]]
 end
@@ -240,7 +240,7 @@ function Context:as_object()
 end
 
 function Context:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return assert(export.debug_string(self), "Failed to get debug string")
 end
 
 --#endregion
@@ -279,7 +279,7 @@ function Field:as_object()
 end
 
 function Field:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.Struct* : gccjit.Type*
@@ -392,10 +392,10 @@ function Struct:as_object()
 end
 
 function Struct:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
----@class gccjit.Type* : ffi.cdata*
+---@class gccjit.Type* : gccjit.Object*
 local Type = {}
 Type.__index = Type
 
@@ -504,7 +504,7 @@ function Type:as_object()
 end
 
 function Type:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.VectorType* : gccjit.Type*
@@ -563,7 +563,7 @@ function Context:new_rvalue_from_vector(vec_t, elems, loc)
     return libgccjit.gcc_jit_context_new_rvalue_from_vector(self, loc, vec_t, num_elems, celems) --[[@as gccjit.RValue*]]
 end
 
----@class gccjit.Location* : ffi.cdata*
+---@class gccjit.Location* : gccjit.Object*
 local Location = {}
 Location.__index = Location
 
@@ -580,7 +580,7 @@ function Location:as_object()
 end
 
 function Location:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.RValue* : gccjit.Object*
@@ -637,7 +637,7 @@ function RValue:as_object()
 end
 
 function RValue:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---Utility func
@@ -798,7 +798,7 @@ function Param:as_object()
 end
 
 function Param:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.Function* : gccjit.Object*
@@ -866,7 +866,7 @@ function Function:as_object()
 end
 
 function Function:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.Block* : gccjit.Object*
@@ -967,7 +967,7 @@ function Block:as_object()
 end
 
 function Block:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.ExtendedAssembly* : gccjit.Object*
@@ -1035,7 +1035,7 @@ function ExtendedAssembly:as_object()
 end
 
 function ExtendedAssembly:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.Case* : gccjit.Object*
@@ -1054,7 +1054,7 @@ function Case:as_object()
 end
 
 function Case:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.LValue* : gccjit.RValue*
@@ -1118,7 +1118,7 @@ function LValue:as_object()
 end
 
 function LValue:__tostring()
-    return ffi.string(libgccjit.gcc_jit_object_get_debug_string(self:as_object()))
+    return export.debug_string(self)
 end
 
 ---@class gccjit.Result* : gccjit.Object*

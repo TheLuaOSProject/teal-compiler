@@ -79,23 +79,25 @@ local RAW_TYPES = {
         uint32_t = ctx:get_type("uint32_t"),
         uint64_t = ctx:get_type("uint64_t"),
 
+        float = ctx:get_type("float"),
+        double = ctx:get_type("double"),
+
         string = ctx:get_type("const char *"),
-        varadict = ctx:new_opaque_struct_type("cvaradict")
+        varadict = ctx:new_opaque_struct_type("cvaradict"),
+        void = ctx:get_type("void"),
+        bool = ctx:get_type("bool")
     },
-
-    integer = ctx:get_type("int64_t"),
-    boolean = ctx:get_type("bool"),
-    number = ctx:get_type("double"),
-    String = ctx:new_struct_type("String", {
-        ctx:new_field(ctx:get_type("uint64_t"), "length"),
-        ctx:new_field(ctx:get_type("uint8_t"):pointer(), "data")
-    }),
-
-    nil_t = ctx:get_type("void")
 }
 
----@type { [PrimitiveType] : Type }
-local type_cache = {}
+RAW_TYPES.integer = RAW_TYPES.c.int64_t
+RAW_TYPES.boolean = RAW_TYPES.c.bool
+RAW_TYPES.number = RAW_TYPES.c.double
+RAW_TYPES.nil_t = RAW_TYPES.c.void
+
+RAW_TYPES.String = ctx:new_struct_type("String", {
+    ctx:new_field(RAW_TYPES.c.uint64_t, "length"),
+    ctx:new_field(RAW_TYPES.c.int8_t:pointer(), "data")
+})
 
 ---@alias Type.Type
 ---| '"function"'
@@ -108,6 +110,7 @@ local type_cache = {}
 ---@field id integer
 ---@field raw gccjit.Type*
 ---@field type Type.Type
+---@field name string
 
 ---@class Type.Function.Parameter
 ---@field name string?
@@ -138,20 +141,51 @@ local function get_rawargtypes(ty)
     return rawargs
 end
 
+---@type { [string] : Type, [integer] : Type }
+local type_cache = setmetatable({}, {
+    __index = function (self, k)
+        if type(k) == "number" then
+            for _, v in pairs(self) do
+                if v.id == k then return v end
+            end
+        end
+    end
+})
+
 ---@type { [integer] : Type.Tuple }
-local tuple_cache = {}
+local tuple_type_cache = {}
 
 ---@type { [integer] : Type.Function }
-local function_cache = {}
+local function_type_cache = {}
 
 ---@param type tl.Type
 ---@return Type
 local function conv_teal_type(type)
     local function ret_prim(name)
-        local dat = { id = type.typeid, raw = RAW_TYPES[name], type = "primitive" }
-        type_cache[name] = dat
+        -- if type_cache[name] then return function() return type_cache[name] end end
 
-        return function() return dat end
+        -- local dat = {
+        --     id = type.typeid,
+        --     raw = RAW_TYPES[name],
+        --     type = "primitive",
+        --     name = name
+        -- }
+        -- type_cache[name] = dat
+        -- pretty(dat)
+
+        -- return function() return dat end
+        return function ()
+            if type_cache[name] then return type_cache[name] end
+
+            local dat = {
+                id = type.typeid,
+                raw = RAW_TYPES[name],
+                type = "primitive",
+                name = name
+            }
+            type_cache[name] = dat
+            return dat
+        end
     end
     return utilities.switch(type.typename) {
         ["integer"] = ret_prim "integer",
@@ -163,24 +197,34 @@ local function conv_teal_type(type)
             --[[@cast type tl.TupleType]]
             if #type.tuple == 0 then return type_cache.nil_t
             elseif #type.tuple == 1 then return conv_teal_type(type.tuple[1]) end
-            if tuple_cache[type.typeid] then return tuple_cache[type.typeid] end
+            if tuple_type_cache[type.typeid] then return tuple_type_cache[type.typeid] end
+
+            local tuplename = "tuple-"..type.typeid
 
             ---@type Type.Tuple
             local tuple = {
                 id = type.typeid,
                 type = "tuple",
-                elements = {}
+                elements = {},
             }
 
             for _, tl_type in ipairs(type.tuple) do
                 local t = conv_teal_type(tl_type)
+                local n = "tuple-element_"..#tuple.elements.."_"..tl_type.typeid
                 tuple.elements[#tuple.elements+1] = {
                     id = tl_type.typeid,
-                    raw = ctx:new_field(t.raw, "tuple-element_"..#tuple.elements.."_"..tl_type.typeid),
+                    raw = ctx:new_field(t.raw, n),
                     type = "tuple field",
-                    backing_type = t
+                    backing_type = t,
+                    name = n
                 }
             end
+            local friendly_name = "tuple"..type.typeid.." { "
+            for i, field in ipairs(tuple.elements) do
+                friendly_name = friendly_name..field.backing_type.name..(i == #tuple.elements and "" or ", ")
+            end
+            friendly_name = friendly_name.." }"
+            tuple.name = friendly_name
 
             ---@type gccjit.Field*[]
             local tup_fields = {}
@@ -188,8 +232,8 @@ local function conv_teal_type(type)
                 tup_fields[i] = field.raw
             end
 
-            tuple.raw = ctx:new_struct_type("tuple-"..type.typeid, tup_fields, loc(type))
-            tuple_cache[type.typeid] = tuple
+            tuple.raw = ctx:new_struct_type(tuplename, tup_fields, loc(type))
+            tuple_type_cache[tuplename] = tuple
             return tuple
         end,
         ["nominal"] = function ()
@@ -197,21 +241,46 @@ local function conv_teal_type(type)
             local names = assert(type.names)
             if names[1] == "c" then
                 return utilities.switch(names[2]) {
+                    pointer = function ()
+                        local pt = conv_teal_type(type.typevals[1])
+
+                        return {
+                            id = type.typeid,
+                            raw = pt.raw:pointer(),
+                            type = "c",
+                            name = pt.name..'*'
+                        }
+                    end,
+                    const = function ()
+                        local ct = conv_teal_type(type.typevals[1])
+
+                        return {
+                            id = type.typeid,
+                            raw = ct.raw:const(),
+                            type = "c",
+                            name = "const "..ct.name
+                        }
+                    end,
                     default = function(x)
                         return RAW_TYPES.c[x] and {
                             id = type.typeid,
                             raw = RAW_TYPES.c[x],
-                            type = "c"
+                            type = "c",
+                            name = x
                         } or error(string.format("Unsupported C type: %s", x))
                     end
                 }
             else
-                error(string.format("Unsupported nominal type: %s", table.concat(names, '.')))
+                --search through the cache
+                local t = type_cache[type.typeid]
+                if t then return t end
+
+                error(string.format("Unsupported nominal type \"%s\". Did you declare it?", table.concat(names, '.')))
             end
         end,
         ["function"] = function ()
             --[[@cast type tl.FunctionType]]
-            if function_cache[type.typeid] then return function_cache[type.typeid] end
+            if function_type_cache[type.typeid] then return function_type_cache[type.typeid] end
 
             ---@type Type.Function.Parameter[]
             local args = {}
@@ -232,11 +301,17 @@ local function conv_teal_type(type)
                 type = "function",
                 args = args,
                 return_types = {ret}, --TODO: support multi-ret
-                is_varadict = type.args.is_va
+                is_varadict = type.args.is_va,
+                name = string.format("function (%s): %s", table.concat(args, ", "), ret.name)
             }
-            function_cache[type.typeid] = dat
+            function_type_cache[type.typeid] = dat
 
             return dat
+        end,
+        ["typealias"] = function ()
+            --[[@cast type tl.TypeAliasType]]
+            type_cache[type.alias_to.typeid] = conv_teal_type(type.alias_to)
+            return type_cache[type.typeid]
         end,
         default = function(x)
             error(string.format("Unsupported type: %s", x))
@@ -276,10 +351,6 @@ _=type_is.type
 ---@field name string
 ---@field is_external boolean
 ---@field raw gccjit.Function*
-
--- -@class FunctionContext.Local.Block
--- -@field raw gccjit.Block*
--- -@field ended boolean
 
 ---@class FunctionContext.Local : FunctionContext
 ---@field is_external false
@@ -494,9 +565,7 @@ function visitor.statements(node, fctx)
     local statements = {}
     for _, stmt in ipairs(node) do
         local var, is_func_call = visit(stmt, fctx)
-
         if is_func_call then fctx.block_stack[#fctx.block_stack]:add_eval(var, loc(node)) end
-
         statements[#statements+1] = var
     end
     return statements
@@ -549,21 +618,76 @@ function visitor.cast(node)
     return conv_teal_type(node.casttype)
 end
 
-function visitor.op(node, fctx)
-    ---@type gccjit.RValue* | gccjit.LValue* | FunctionContext
-    local lhs = visit(node.e1, fctx)
-    ---@type gccjit.RValue* | gccjit.LValue* | Type
-    local rhs = visit(node.e2, fctx)
-    local op = assert(node.op.op, "Expected an operator")
-    if op == "@funcall" then
-        return function_call(lhs.raw, rhs, loc(node), fctx), true
-    elseif op == "as" then
-        return ctx:new_cast(rhs.raw, lhs:as_rvalue(), loc(node))
-    end
+---@param node tl.Node
+---@param fctx FunctionContext.Local
+---@param scope Scope
+---@return Type
+local function typedef(node, fctx, scope)
+    ---@type string
+    local name = visit(node.var, fctx).name
+    assert(node.value.kind == "newtype", "Expected a newtype node")
+    return conv_teal_type(node.value.newtype)
+end
 
-    if is_comparison[op] then
+function visitor.local_type(node, fctx)
+    return typedef(node, fctx, "local")
+end
+
+function visitor.global_type(node, fctx)
+    return typedef(node, fctx, "global")
+end
+
+local special_operators = {}
+
+---@param node tl.Node
+---@param fctx FunctionContext.Local
+---@return gccjit.RValue*, true
+function special_operators.funcall(node, fctx)
+    ---@type FunctionContext.External
+    local func = visit(node.e1, fctx)
+    ---@type (gccjit.RValue* | gccjit.Param*)[]
+    local args = visit(node.e2, fctx)
+    --the `true` indicates its a function call, so the statement can be added to the block. This is a godawful hack but I dont care
+    return function_call(func.raw, args, loc(node), fctx), true
+end
+
+---@param node tl.Node
+---@param fctx FunctionContext.Local
+---@return gccjit.RValue*
+function special_operators.as(node, fctx)
+    local ty = visit(node.e2, fctx)
+    local val = visit(node.e1, fctx)
+    return ctx:new_cast(ty.raw, val:as_rvalue(), loc(node))
+end
+
+---TODO: When tables are implemented make this also work with tables
+---@param node tl.Node
+---@param fctx FunctionContext.Local
+function special_operators.index(node, fctx)
+    ---@type gccjit.RValue*
+    local tbl = visit(node.e1, fctx):as_rvalue()
+    ---@type gccjit.RValue*
+    local idx = visit(node.e2, fctx):as_rvalue()
+
+    return ctx:new_array_access(tbl, idx, loc(node)) --gccjit should catch any type errors :)
+end
+
+function visitor.op(node, fctx)
+    local op = assert(node.op.op, "Expected an operator")
+
+    if op:sub(1, 1) == "@" or op == "as" then
+        local specop = special_operators[op == "as" and "as" or op:sub(2)]
+        if not specop then
+            error("Unsupported special operator: "..op)
+        end
+        return specop(node, fctx)
+    elseif is_comparison[op] then
+        local lhs = visit(node.e1, fctx)
+        local rhs = visit(node.e2, fctx)
         return ctx:new_comparison(op, lhs:as_rvalue(), rhs:as_rvalue(), loc(node))
     else
+        local lhs = visit(node.e1, fctx)
+        local rhs = visit(node.e2, fctx)
         return ctx:new_binary_op(lhs:as_rvalue():get_type(), lhs:as_rvalue(), op, rhs:as_rvalue(), loc(node))
     end
 end
