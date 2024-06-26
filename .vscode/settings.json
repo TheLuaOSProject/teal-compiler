@@ -1,4 +1,10 @@
 {
     "teal.compilerPath": "teal/tl",
-    "clangd.fallbackFlags": [ "-I/usr/local/include", "-std=c++23", "-stdlib=libc++" ],
+    "clangd.fallbackFlags": [
+        "-D__uint64_t='typeof(unsigned long long)'",
+        "-D__uint32_t='typeof(unsigned int)'",
+        "-D__int32_t='typeof(int)'",
+        "-D__uint8_t='typeof(unsigned char)'",
+        "-D__int8_t='typeof(char)'"
+    ],
 }
