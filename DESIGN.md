@@ -91,35 +91,35 @@ end
 
 More primitive types are defined in order to make it easier to interface with C. This table
 
-| Teal type           | C type                      | Description                                                                                               | Lua equivalent type |
-| :------------------ | :-------------------------- | :-------------------------------------------------------------------------------------------------------- | :------------------ |
-| `nil`               | `void`                      | no value                                                                                                  | `nil`               |
-| `byte`              | `uint8_t`                   | 8-bit unsigned integer                                                                                    | `number`            |
-| `integer8`          | `int8_t`                    | 8-bit signed integer                                                                                      | `number`            |
-| `integer16`         | `int16_t`                   | 16-bit signed integer                                                                                     | `number`            |
-| `integer32`         | `int32_t`                   | 32-bit signed integer                                                                                     | `number`            |
-| `integer64`         | `int64_t`                   | 64-bit signed integer                                                                                     | `number`            |
-| `float32`           | `float`                     | single-precision floating point number                                                                    | `number`            |
-| `float64`           | `double`                    | double-precision floating point number                                                                    | `number`            |
-| `float128`          | `long double`               | quadruple-precision floating point number (available on supporting architectures)                         |                     |
-| `record T`          | `struct T`                  | Standard product type                                                                                     | `table`             |
-| `interface T`       | `struct T`                  | Interface (new in teal `next`)                                                                            | `table`             |
-| `{T}`               | `T[]`                       | Array                                                                                                     | `table`             |
-| `{T1, T2}`          | `struct {T1; T2} []`        | Tuple                                                                                                     | `table`             |
-| `enum`              | `const char *`              | Enum, in teal this is represented as strings, so the same must be done in C.                              | `string`            |
-| `T1 \| T2`          | `struct {T1\|T2; enum tag}` | Sum type, in C this would be a tagged union, where in Lua it would be any value                           | `any`               |
-| `any`               | `void *`                    | Any value, can be any type                                                                                | `lightuserdata`     |
-|                     |                             |                                                                                                           |                     |
-| `function(T...): T` | `T(T...)`                   | Function                                                                                                  | `function`          |
-| `unsigned<T>`       | `unsigned T`                | Marks an integral type to be unsigned                                                                     | `number`            |
-| `value<T>`          |                             | By default, any `record` type is a reference on the heap. `value<T>` forces it to be located on the stack |                     |
-| `integer`           | `int64_t`                   | 64-bit signed integer                                                                                     | `number`            |
-| `number`            | `double`                    | double-precision floating point number                                                                    | `number`            |
-| `boolean`           | `bool`                      | boolean                                                                                                   | `boolean`           |
-| `string`            |                             | Proper string type, not null-terminated                                                                   | `string`            |
-|                     |                             |                                                                                                           |                     |
-| `c.pointer<T>`      | `T *`                       | Pointer to value. This is a raw pointer, so be careful!                                                   | `lightuserdata`     |
-| `c.string`          | `const char *`              | C string type, must be null terminated                                                                    | `string`            |
-| `c.varadict`        | `...`                       | C varadict, only valid in arguments for C funcitons                                                       |                     |
-| `c.const<T>`        | `const T`                   | Constant type specifier                                                                                   |                     |
-|                     |                             |                                                                                                           |                     |
+| Teal type           | C type                             | Description                                                                                               | Lua equivalent type |
+| :------------------ | :--------------------------------- | :-------------------------------------------------------------------------------------------------------- | :------------------ |
+| `nil`               | `void`                             | no value                                                                                                  | `nil`               |
+| `byte`              | `uint8_t`                          | 8-bit unsigned integer                                                                                    | `number`            |
+| `integer8`          | `int8_t`                           | 8-bit signed integer                                                                                      | `number`            |
+| `integer16`         | `int16_t`                          | 16-bit signed integer                                                                                     | `number`            |
+| `integer32`         | `int32_t`                          | 32-bit signed integer                                                                                     | `number`            |
+| `integer64`         | `int64_t`                          | 64-bit signed integer                                                                                     | `number`            |
+| `float32`           | `float`                            | single-precision floating point number                                                                    | `number`            |
+| `float64`           | `double`                           | double-precision floating point number                                                                    | `number`            |
+| `float128`          | `long double`                      | quadruple-precision floating point number (available on supporting architectures)                         |                     |
+| `record T`          | `struct T`                         | Standard product type                                                                                     | `table`             |
+| `interface T`       | `struct T`                         | Interface (new in teal `next`)                                                                            | `table`             |
+| `{T}`               | `T[]`                              | Array                                                                                                     | `table`             |
+| `{T1, T2}`          | `struct {T1; T2} []`               | Tuple                                                                                                     | `table`             |
+| `enum`              | `const char *`                     | Enum, in teal this is represented as strings, so the same must be done in C.                              | `string`            |
+| `T1 \| T2`          | `struct {union {T1;T2}; enum tag}` | Sum type, in C this would be a tagged union, where in Lua it would be any value                           | `any`               |
+| `any`               | `void *`                           | Any value, can be any type                                                                                | `lightuserdata`     |
+|                     |                                    |                                                                                                           |                     |
+| `function(T...): T` | `T(T...)`                          | Function                                                                                                  | `function`          |
+| `unsigned<T>`       | `unsigned T`                       | Marks an integral type to be unsigned                                                                     | `number`            |
+| `value<T>`          |                                    | By default, any `record` type is a reference on the heap. `value<T>` forces it to be located on the stack |                     |
+| `integer`           | `int64_t`                          | 64-bit signed integer                                                                                     | `number`            |
+| `number`            | `double`                           | double-precision floating point number                                                                    | `number`            |
+| `boolean`           | `bool`                             | boolean                                                                                                   | `boolean`           |
+| `string`            |                                    | Proper string type, not null-terminated                                                                   | `string`            |
+|                     |                                    |                                                                                                           |                     |
+| `c.pointer<T>`      | `T *`                              | Pointer to value. This is a raw pointer, so be careful!                                                   | `lightuserdata`     |
+| `c.string`          | `const char *`                     | C string type, must be null terminated                                                                    | `string`            |
+| `c.varadict`        | `...`                              | C varadict, only valid in arguments for C funcitons                                                       |                     |
+| `c.const<T>`        | `const T`                          | Constant type specifier                                                                                   |                     |
+|                     |                                    |                                                                                                           |                     |
