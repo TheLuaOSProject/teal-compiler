@@ -80,7 +80,7 @@ Any `global` variables in the top scope (`global` variables in any other scope i
 --a symbol `x` will be exported
 global x: integer = 5
 
-global function main(argc: integer, argv: c.pointer<c.string>): integer
+global function main(argc: integer, argv: c.ptr<c.string>): integer
     print("Argc: "..tostring(argc))
 
     return 0
@@ -118,8 +118,13 @@ More primitive types are defined in order to make it easier to interface with C.
 | `boolean`           | `bool`                             | boolean                                                                                                   | `boolean`           |
 | `string`            |                                    | Proper string type, not null-terminated                                                                   | `string`            |
 |                     |                                    |                                                                                                           |                     |
-| `c.pointer<T>`      | `T *`                              | Pointer to value. This is a raw pointer, so be careful!                                                   | `lightuserdata`     |
+| `c.ptr<T>`          | `T *`                              | Pointer to value. This is a raw pointer, so be careful!                                                   | `lightuserdata`     |
 | `c.string`          | `const char *`                     | C string type, must be null terminated                                                                    | `string`            |
 | `c.varadict`        | `...`                              | C varadict, only valid in arguments for C funcitons                                                       |                     |
 | `c.const<T>`        | `const T`                          | Constant type specifier                                                                                   |                     |
 |                     |                                    |                                                                                                           |                     |
+
+### Records
+
+The layout of a record is the same as the layout of a C struct. Methods within a record are not fields. In order to add function pointers, use `c.ptr<function(...): ...>`
+
