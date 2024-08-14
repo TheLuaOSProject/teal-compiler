@@ -16,6 +16,7 @@
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
 
 local ffi = require("ffi")
+require("jit") --teal type inport
 
 ffi.cdef [[
 typedef struct FILE FILE;
@@ -1544,6 +1545,7 @@ gcc_jit_type_unqualified (gcc_jit_type *type);
 
 ]]
 
+---@type string
 local brew_prefix do
     if jit.os == "OSX" then
         local f = assert(io.popen("brew --prefix libgccjit", "r"))

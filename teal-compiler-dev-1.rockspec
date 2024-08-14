@@ -1,3 +1,4 @@
+rockspec_format = "3.0"
 package = "teal-compiler"
 version = "dev-1"
 source = {
@@ -7,11 +8,13 @@ description = {
    homepage = "https://github.com/Frityet/teal-compiler",
    license = "GPLv3"
 }
+build_dependencies = {
+   "luarocks-build-cyan"
+}
 dependencies = {
    "lua ~> 5.1",
    "penlight",
    "argparse",
-   "tl"
 }
 build = {
    type = "builtin",

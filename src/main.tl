@@ -24,23 +24,18 @@ if not arg[1] or arg[1] == "-h" or arg[1] == "--help" then
 end
 
 local in_f = arg[1]
--- local opt_level = 0
--- local debug_info = false
--- local use_gc_for_compile = false
--- local opt_level, debug_info, use_gc_for_compile = 0, false, false
 local opts = {
     opt_level = 0,
     debug_info = false,
     use_gc_for_compile = false,
-    ---@type string?
-    outfile = nil,
+    outfile = nil as string | nil,
     dump_tree = false
 }
 
 for i = 2, #arg do
     local v = arg[i]
     if v:match("-O%d") then
-        opts.opt_level = assert(tonumber(v:match("-O(%d)")) or tonumber(arg[i + 1]))
+        opts.opt_level = assert(tonumber(v:match("-O(%d)")) as integer | nil or tonumber(arg[i + 1]) as integer | nil)
     end
 
     if v == "-o" then opts.outfile = arg[i + 1] end
@@ -56,11 +51,10 @@ end
 
 if not opts.outfile then opts.outfile = in_f:gsub("%.tl$", ".so") end
 
----@type string
-local contents do
-    local f = assert(io.open(in_f, "r"))
+local contents: string do
+    local f = assert(io.open(in_f, "r"), "Could not open "..in_f.."for reading")
     contents = f:read("*a")
-    assert(f:close())
+    f:close()
 end
 
 local ast, errs, modules = teal.parse(contents, in_f)
@@ -77,18 +71,16 @@ ctx:set_option("optimization level", opts.opt_level)
 ctx:set_option("debuginfo", opts.debug_info)
 ctx:set_option("dump initial tree", opts.dump_tree)
 
-local out_ext = opts.outfile:match("%.(%w+)$")
----@type gccjit.OutputKind | "gimple"
+local out_ext = (opts.outfile as string):match("%.(%w+)$")
 local kind = utilities.match(out_ext) {
     so = "dynamic library",
     S = "assembler",
     o = "object file",
     gimple = "gimple",
-    default = "executable"
-}
+} or "executable"
 
 if kind == "gimple" then
     ctx:dump_to_file(opts.outfile, true)
 else
-    ctx:compile_to_file(kind --[[@as gccjit.OutputKind]], opts.outfile)
+    ctx:compile_to_file(kind, opts.outfile)
 end
