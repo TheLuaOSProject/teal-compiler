@@ -50,6 +50,9 @@ function string.unescape(str)
             ["n"] = "\n",
             ["t"] = "\t",
             ["r"] = "\r",
+            ["0"] = "\0",
+            ["'"] = "'",
+            ['"'] = '"',
             ["\\"] = "\\"
         })[c] or c
     end))
@@ -277,10 +280,6 @@ _=type_is.type
 ---@field is_external boolean
 ---@field raw gccjit.Function*
 
--- -@class FunctionContext.Local.Block
--- -@field raw gccjit.Block*
--- -@field ended boolean
-
 ---@class FunctionContext.Local : FunctionContext
 ---@field is_external false
 ---@field block_stack gccjit.Block*[]
@@ -301,14 +300,13 @@ local visitor = {}
 ---This needs to be 3 lines so its not inlined properly, making it easier to debug!
 ---@type Visitor.Function
 local function visit(node, fctx)
-    -- return (visitor[node.kind] or error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node)))))(node)
-    local vtor = visitor[node.kind]
-    if not vtor then
-        error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node))))
-    end
+    return (visitor[node.kind] or error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node)))))(node, fctx)
+    -- local vtor = visitor[node.kind]
+    -- if not vtor then
+    --     error(string.format("Unsupported node kind '%s' at %s", node.kind, tostring(loc(node))))
+    -- end
 
-    --don't TCO so debug looks nicer
-    return vtor(node, fctx)
+    -- return vtor(node, fctx)
 end
 
 --#region Visitor functions

@@ -21,7 +21,7 @@ local pretty = require("pl.pretty")
 local input_file, output_file = arg[1], arg[2] or "ast.lua"
 if not input_file then error("Missing input file as first argument") end
 
-local f = assert(io.open(input_file, "rb"))
+local f: FILE = assert(io.open(input_file, "rb"), "Could not open input file")
 local ast, errors, modules = tl.parse(f:read("*a"), input_file)
 f:close()
 
@@ -32,6 +32,6 @@ if #errors > 0 then
   os.exit(1)
 end
 
-local f = assert(io.open(output_file, "w+b"))
+local f: FILE = assert(io.open(output_file, "w+b"), "Could not open output file")
 f:write("return ", pretty.write(ast as table))
 f:close()

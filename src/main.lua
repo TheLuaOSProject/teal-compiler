@@ -14,6 +14,7 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with teal-compiler.  If not, see <http://www.gnu.org/licenses/>.
+
 local gccjit_translator = require("codegen.gccjit")
 local utilities = require("utilities")
 local teal = require("teal.tl")

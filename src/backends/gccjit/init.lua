@@ -741,6 +741,8 @@ end
 ---@alias gccjit.BinaryOperation
 ---| "plus"
 ---| "+" GCC_JIT_BINARY_OP_PLUS
+---| "minus"
+---| "-" GCC_JIT_BINARY_OP_MINUS
 ---| "mult"
 ---| "*" GCC_JIT_BINARY_OP_MULT
 ---| "divide"
