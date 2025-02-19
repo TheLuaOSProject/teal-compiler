@@ -66,8 +66,6 @@ end
 ---@param dump_on_fail string?
 function export.cdef(content, dump_on_fail)
     content = content:gsub("#line[^\n]*\n", ""):gsub("#include[^\n]*\n", "")
-
-
     ---@type boolean, string?
     local ok, err = pcall(ffi.cdef, content)
     if err then
@@ -118,9 +116,7 @@ function export.preprocess_header(header, flags, preprocess_to)
 
     local out_h = preprocess_to or os.tmpname()
     local cmd = string.format("%s -E -Wno-error=unused-command-line-argument -fkeep-system-includes -P -I. %s %s > %s", os.getenv("CC") or "clang", table.concat(flgs, " "), header, out_h)
-    ---@type integer
-    local code = os.execute(cmd)
-    if code ~= 0 then
+    if not export.execute(cmd) then
         error(string.format("Failed to preprocess C header file %s! Tried `%s`", header, cmd))
     end
 
@@ -133,14 +129,15 @@ function export.preprocess_header(header, flags, preprocess_to)
 end
 
 ---@param header_path string
+---@param libname string?
 ---@param defines { [string]: string|integer }?
 ---@param prefix string?
 ---@return ffi.namespace*
-function export.load_clib(header_path, defines, prefix)
+function export.load_clib(header_path, libname, defines, prefix)
     local content = export.preprocess_header(header_path, defines, header_path..".h")
     export.cdef(content, header_path:match("([^/]+)%.h$")..".fail.h")
 
-    local libname = header_path:match("([^/]+)%.h$")
+    libname = libname or header_path:match("([^/]+)%.h$")
 
     if not prefix then
         return ffi.load(libname)

@@ -2,20 +2,20 @@
 
 -- Copyright (C) 2024 Amrit Bhogal
 --
--- This file is part of FFI-to-LLS.
+-- This file is part of teal-compiler.
 --
--- FFI-to-LLS is free software: you can redistribute it and/or modify
+-- teal-compiler is free software: you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
 -- the Free Software Foundation, either version 3 of the License, or
 -- (at your option) any later version.
 --
--- FFI-to-LLS is distributed in the hope that it will be useful,
+-- teal-compiler is distributed in the hope that it will be useful,
 -- but WITHOUT ANY WARRANTY; without even the implied warranty of
 -- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with FFI-to-LLS.  If not, see <https://www.gnu.org/licenses/>.
+-- along with teal-compiler.  If not, see <https://www.gnu.org/licenses/>.
 
 --the program will sigsegv if the GC is on :)
 collectgarbage("stop")
@@ -344,8 +344,10 @@ local function type_to_lls_type(type)
         return tostring(clang.getCursorSpelling(clang.getTypeDeclaration(type)))
     end
 
-    warn("Unknown type: "..clang.getTypeSpelling(type).." (kind: "..clang.getTypeKindSpelling(type.kind).." - `"..tostring(type.kind).."`)")
-    return tostring(clang.getTypeSpelling(type))
+    local tyspelling = tostring(clang.getTypeSpelling(type))
+    tyspelling = tyspelling:gsub("const ", "")
+    warn("Unknown type: "..tyspelling.." (kind: "..clang.getTypeKindSpelling(type.kind).." - `"..tostring(type.kind).."`)")
+    return tyspelling
 end
 
 ---@param type CXType
@@ -401,8 +403,13 @@ visitor[cursortype "StructDecl"] = function (cursor, parent)
     end
 end
 
+local unnamed_count = 0
 visitor[cursortype "EnumDecl"] = function (cursor, parent)
     local name = clang.getCursorSpelling(cursor)
+    if tostring(name):find("%(unnamed") then
+        name = string.format("%s_UnnamedEnum%d", mod_name, unnamed_count)
+        unnamed_count = unnamed_count + 1
+    end
     out_f:write("---@enum "..name.."\n")
     out_f:write(string.format("local %s = {\n", name))
 
