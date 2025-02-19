@@ -1,0 +1,8 @@
+{
+    "id": "xmake",
+    "version": "1.1.0",
+    "name": "xmake",
+    "installsAfter": [
+        "ghcr.io/devcontainers-community/features/llvm:3"
+    ]
+}

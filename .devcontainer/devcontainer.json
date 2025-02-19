@@ -1,0 +1,23 @@
+{
+	"name": "Debian",
+	"image": "mcr.microsoft.com/devcontainers/base:debian",
+	"features": {
+		"ghcr.io/devcontainers-community/features/llvm:3": {
+			"version": "19"
+		},
+		"ghcr.io/veronoicc/devcontainer-features/luajit-2.1.0-beta3": {},
+        "./luarocks": {},
+        "./xmake": {}
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"llvm-vs-code-extensions.vscode-clangd"
+			],
+			"settings": {
+				"clangd.path": "/usr/bin/clangd"
+			}
+		}
+	},
+	"postAttachCommand": "luarocks init"
+}

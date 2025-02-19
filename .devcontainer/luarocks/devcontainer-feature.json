@@ -1,0 +1,18 @@
+{
+    "id": "luarocks",
+    "version": "1.1.0",
+    "name": "luarocks",
+    "installsAfter": [
+        "ghcr.io/devcontainers-community/features/llvm:3",
+        "ghcr.io/veronoicc/devcontainer-features/luajit-2.1.0-beta3"
+    ],
+    "options": {
+        "version" : {
+            "type": "string",
+            "proposals": [
+                "3.11.1"
+            ],
+            "default": "3.11.1"
+        }
+    }
+}
