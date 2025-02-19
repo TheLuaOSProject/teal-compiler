@@ -20,10 +20,7 @@
     ],
     "workspace.library": [
         "types/",
-        "/Users/frityet/Library/Application Support/Code/User/globalStorage/sumneko.lua/addonManager/addons/penlight/module/library",
-        "${3rd}/lfs/library",
-        "/Users/frityet/.vscode/extensions/sumneko.lua-3.7.4-darwin-x64/server/meta/47e10203",
-        // "/Users/frityet/.vscode/extensions/sumneko.lua-3.7.4-darwin-x64/server/meta/47e10203",
+        "${3rd}/lfs/library"
     ],
     "runtime.path": [
         "src/?.lua",
