@@ -1,21 +1,23 @@
 {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
     "configurations": [
         {
-            "arg": [
-                "test.tl",
-                "-o", "out"
-            ],
-            // "runtimeArgs": "-joff -O0 -jp=a",
-            "name": "launch",
-            "program": "${workspaceFolder}/src/main.lua",
+            "name": "ffi-to-lls",
+            "type": "lua-local",
             "request": "launch",
-            "luaVersion": "luajit",
-            "luaexe": "${workspaceFolder}/lua",
-            "path": "${workspaceFolder}/?.lua;${workspaceFolder}/?/init.lua;${workspaceFolder}/src/?.lua;${workspaceFolder}/src/?/init.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?.lua;${workspaceFolder}/lua_modules/share/lua/5.1/?/init.lua;",
-            "cpath": "${workspaceFolder}/?.so;${workspaceFolder}/lua_modules/lib/lua/5.1/?.so;",
-            "stopOnEntry": false,
-            "type": "lua",
-            "console": "internalConsole",
-        }
+            "program": {
+                "lua": "luajit",
+                "file": "tools/ffi-to-lls.lua",
+            },
+            "args": [
+                "/usr/lib/llvm-19/include/clang-c/Index.h",
+                "--remove-prefix", "clang_",
+                "--module-name", "clang",
+                "-o", "types/clang.lua"
+            ]
+        },
     ]
 }

@@ -7,4 +7,8 @@
         "-D__uint8_t='typeof(unsigned char)'",
         "-D__int8_t='typeof(char)'"
     ],
+    "yaml.schemas": {
+        "file:///toc.schema.json": "/toc\\.yml/i",
+        "https://json.schemastore.org/clangd.json": "file:///workspaces/teal-compiler/.clangd"
+    },
 }
