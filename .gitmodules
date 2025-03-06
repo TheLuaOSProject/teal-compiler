@@ -1,4 +1,3 @@
-[submodule "teal"]
-	path = teal
-	url = https://github.com/Frityet/tl
-	branch = next
+[submodule "parser/teal-parser"]
+	path = parser/teal-parser
+	url = https://github.com/TheLuaOSProject/teal-parser

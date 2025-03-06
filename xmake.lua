@@ -6,16 +6,18 @@ do
     on_install(function (package)
         import("lib.detect.find_tool")
         local llvmcfg = find_tool("llvm-config")
-        local cflags_str = os.iorunv(llvmcfg.program, {"--cflags"})
-        local ldflags_str = os.iorunv(llvmcfg.program, {"--ldflags"})
 
         local cflags, ldflags = {}, {}
-        table.join2(cflags, cflags_str:split("%s+"))
-        table.join2(ldflags, ldflags_str:split("%s+"))
+        table.join2(cflags, os.iorunv(llvmcfg.program, {"--cflags"}):split("%s+"))
+        table.join2(ldflags, os.iorunv(llvmcfg.program, {"--ldflags"}):split("%s+"))
+        table.join2(ldflags, os.iorunv(llvmcfg.program, {"--libs"}):split("%s+"))
 
+        print({
+            cflags = cflags,
+            ldflags = ldflags
+        })
         package:add("cflags", cflags)
         package:add("ldflags", ldflags)
-        package:add("links", {os.iorunv(llvmcfg.program, {"--libs"})})
     end)
 end
 package_end()
@@ -23,4 +25,5 @@ package_end()
 add_requires("libllvm")
 
 includes("tests/llvm")
+includes("parser")
 
