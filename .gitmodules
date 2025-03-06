@@ -1,3 +1,3 @@
-[submodule "parser/teal-parser"]
-	path = parser/teal-parser
+[submodule "parser"]
+	path = parser
 	url = https://github.com/TheLuaOSProject/teal-parser

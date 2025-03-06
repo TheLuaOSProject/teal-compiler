@@ -23,7 +23,13 @@ end
 package_end()
 
 add_requires("libllvm")
-
-includes("tests/llvm")
 includes("parser")
+
+set_languages("gnu++23")
+
+target("teal-compiler")
+    add_files("src/**.cpp")
+    add_cxxflags("-Wall", "-Wextra", "-Werror", "-Wno-c23-extensions", "-std=libc++")
+    add_deps("teal-parser")
+    add_packages("libllvm")
 
