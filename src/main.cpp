@@ -45,7 +45,7 @@ int main(int argc, const char *argv[])
 
     ap.parse_args(argc, argv);
 
-    teal::compiler::codegen::llvm::CompilationOptions opts;
+    teal::compiler::codegen::LLVMCompilationOptions opts;
     opts.source = std::filesystem::path(ap.get("file"));
     if (auto out = ap.present("--output")) {
         opts.compile_to = std::filesystem::path(*out);
@@ -73,7 +73,7 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    auto codegen = teal::compiler::codegen::llvm::CodeGenerator(std::move(root), opts);
+    auto codegen = teal::compiler::codegen::LLVMCodeGenerator(std::move(root), opts);
 
     try {
         codegen.compile();

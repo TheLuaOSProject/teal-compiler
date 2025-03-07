@@ -33,7 +33,7 @@ target("teal-compiler")
     add_deps("teal-parser")
     add_cxxflags(
         "-Wno-unused-parameter",
-         "-Wno-error=deprecated-declarations" --because LLVM uses std::aligned_union for some reason :)
+        "-Wno-error=deprecated-declarations" --because LLVM uses std::aligned_union for some reason :)
     )
     add_includedirs("src")
     add_packages("libllvm", "libc++", "argparse")
