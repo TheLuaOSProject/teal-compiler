@@ -5,19 +5,15 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "ffi-to-lls",
-            "type": "lua-local",
+            "type": "lldb-dap",
             "request": "launch",
-            "program": {
-                "lua": "luajit",
-                "file": "tools/ffi-to-lls.lua",
-            },
-            "args": [
-                "/usr/lib/llvm-19/include/clang-c/Index.h",
-                "--remove-prefix", "clang_",
-                "--module-name", "clang",
-                "-o", "types/clang.lua"
-            ]
-        },
+            "name": "Launch",
+            "program": "${workspaceRoot}/build/linux/x86_64/debug/teal-compiler",
+            "args": ["t.tl"],
+            "env": [],
+            "cwd": "${workspaceRoot}",
+            "disableASLR": false,
+            "initCommands": ["settings set target.disable-aslr false"],
+        }
     ]
 }

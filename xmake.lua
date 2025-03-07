@@ -16,20 +16,25 @@ do
             cflags = cflags,
             ldflags = ldflags
         })
-        package:add("cflags", cflags)
+        package:add("cxflags", cflags)
         package:add("ldflags", ldflags)
     end)
 end
 package_end()
 
-add_requires("libllvm")
+add_requires("libllvm", "libc++", "argparse")
 includes("parser")
 
-set_languages("gnu++23")
+set_languages("gnuxx23")
 
 target("teal-compiler")
     add_files("src/**.cpp")
-    add_cxxflags("-Wall", "-Wextra", "-Werror", "-Wno-c23-extensions", "-std=libc++")
+    add_cxxflags("-Wall", "-Wextra", "-Werror", "-Wno-c23-extensions", "-stdlib=libc++", "-fexperimental-library")
     add_deps("teal-parser")
-    add_packages("libllvm")
+    add_cxxflags(
+        "-Wno-unused-parameter",
+         "-Wno-error=deprecated-declarations" --because LLVM uses std::aligned_union for some reason :)
+    )
+    add_includedirs("src")
+    add_packages("libllvm", "libc++", "argparse")
 
