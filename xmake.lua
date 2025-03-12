@@ -9,15 +9,28 @@ do
 
         local cflags, ldflags = {}, {}
         table.join2(cflags, os.iorunv(llvmcfg.program, {"--cflags"}):split("%s+"))
-        table.join2(ldflags, os.iorunv(llvmcfg.program, {"--ldflags"}):split("%s+"))
-        table.join2(ldflags, os.iorunv(llvmcfg.program, {"--libs"}):split("%s+"))
+        local libdirs = os.iorunv(llvmcfg.program, {"--ldflags"}):split("%s+")
+        table.join2(ldflags, libdirs)
+        for i, libdir in ipairs(libdirs) do
+            libdirs[i] = libdir:match("%-L(.*)")
+        end
+        local libs = os.iorunv(llvmcfg.program, {"--libs"}):split("%s+")
+        table.join2(ldflags, libs)
+        for i, lib in ipairs(libs) do
+            libs[i] = lib:match("%-l(.*)")
+        end
+        
 
         print({
             cflags = cflags,
-            ldflags = ldflags
+            ldflags = ldflags,
+            libs = libs,
+            libdirs = libdirs
         })
         package:add("cxflags", cflags)
         package:add("ldflags", ldflags)
+        package:add("linkdirs", libdirs)
+        package:add("links", libs)
     end)
 end
 package_end()
@@ -37,4 +50,5 @@ target("teal-compiler")
     )
     add_includedirs("src")
     add_packages("libllvm", "libc++", "argparse")
+    add_links("LLVM-19")
 

@@ -2,21 +2,20 @@
 #include "teal-parser/Lexer.hpp"
 #include "teal-parser/Parser.hpp"
 #include <print>
+#include <unistd.h>
 #include <filesystem>
 #include <fstream>
-#include <unistd.h>
 #include <argparse/argparse.hpp>
+
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-bool __is_posix_terminal(std::FILE *f)
-{
-    return isatty(fileno(f));
-}
+extern bool __is_posix_terminal(std::FILE *f);
 
 _LIBCPP_END_NAMESPACE_STD
 
-std::string read_all(const std::filesystem::path &path) {
+std::string read_all(const std::filesystem::path &path)
+{
     if (not std::filesystem::exists(path)) {
         throw std::ios_base::failure("File does not exist: " + path.string());
     }
@@ -45,7 +44,7 @@ int main(int argc, const char *argv[])
 
     ap.parse_args(argc, argv);
 
-    teal::compiler::codegen::LLVMCompilationOptions opts;
+    teal::compiler::codegen::LLVMCodeGenerator::CompilationOptions opts;
     opts.source = std::filesystem::path(ap.get("file"));
     if (auto out = ap.present("--output")) {
         opts.compile_to = std::filesystem::path(*out);

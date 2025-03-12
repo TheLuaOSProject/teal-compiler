@@ -1,8 +1,6 @@
 #pragma once
 #include <exception>
 #include <filesystem>
-#include <functional>
-#include <any>
 
 #include "utilities.hpp"
 #include "teal-parser/AST.hpp"
@@ -104,7 +102,7 @@ namespace teal::compiler::codegen
 
         virtual ~Backend() = default;
     protected:
-        std::any visit(const teal::parser::ast::ASTNode &ptr)
+        utilities::Any visit(const teal::parser::ast::ASTNode &ptr)
         {
 #define $(T) if (auto *raw = dynamic_cast<const teal::parser::ast::T *>(&ptr)) return visit(*raw)
             $ast_nodes
@@ -116,7 +114,7 @@ namespace teal::compiler::codegen
         const BaseCompilationOptions &_options;
 
 
-#define $visitor_decl(T, ...) std::any __VA_OPT__(__VA_ARGS__::)visit(const teal::parser::ast::T &node)
+#define $visitor_decl(T, ...) teal::compiler::utilities::Any __VA_OPT__(__VA_ARGS__::) visit(const teal::parser::ast::T &node)
 #define $undefined_visitor(...)\
         $visitor_decl(__VA_ARGS__)\
         { throw NodeNotImplementedException(_options.compile_to.string(), node); }

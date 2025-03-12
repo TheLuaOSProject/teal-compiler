@@ -24,4 +24,21 @@ namespace teal::compiler::utilities
             return std::any_cast<TBase *>(val);
         }
     }
+
+    class Any : public std::any {
+        public:
+            using std::any::any;
+    
+            template<typename T>
+            constexpr inline T to(this Any &&self)
+            { return std::any_cast<T &&>(std::move(self)); }
+    
+            template<typename T>
+            constexpr inline const T &as(this const Any &self)
+            { return std::any_cast<const T &>(self); }
+    
+            template<typename T>
+            constexpr inline T &as(this Any &self)
+            { return std::any_cast<T &>(self); }
+    };
 }
